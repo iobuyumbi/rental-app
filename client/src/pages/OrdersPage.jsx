@@ -36,7 +36,11 @@ import {
   Calendar,
   User,
   Package,
-  Clock
+  Clock,
+  X,
+  PlusCircle,
+  MinusCircle,
+  PackagePlus
 } from 'lucide-react';
 import { ordersAPI } from '../services/api';
 import { toast } from 'sonner';
@@ -67,16 +71,30 @@ const OrdersPage = () => {
     notes: '',
     paymentStatus: 'pending',
     deposit: 0,
-    totalAmount: 0
+    totalAmount: 0,
+    discount: 0,
+    taxRate: 16 // Default tax rate in Kenya
   });
   
-  // Fetch orders using the useApi hook
+  // State for product selection
+  const [productSearch, setProductSearch] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [quantity, setQuantity] = useState(1);
+  const [productList, setProductList] = useState([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  
+  // Fetch orders and products using the useApi hook
   const { 
     data: ordersData = [], 
     loading: ordersLoading, 
     error: ordersError, 
     refetch: refetchOrders 
   } = useApi(() => ordersAPI.getOrders({}));
+  
+  // Fetch available products
+  const { data: availableProducts = [] } = useApi(() => 
+    inventoryAPI.getAvailableProducts()
+  );
 
   // Memoized filtered orders
   const filteredOrders = useMemo(() => {
@@ -105,6 +123,9 @@ const OrdersPage = () => {
   useEffect(() => {
     if (!isDialogOpen) {
       setEditingOrder(null);
+      setProductSearch('');
+      setSelectedProduct(null);
+      setQuantity(1);
       setFormData({
         client: '',
         items: [],
@@ -114,10 +135,92 @@ const OrdersPage = () => {
         notes: '',
         paymentStatus: 'pending',
         deposit: 0,
-        totalAmount: 0
+        totalAmount: 0,
+        discount: 0,
+        taxRate: 16
       });
     }
   }, [isDialogOpen]);
+  
+  // Filter products based on search
+  useEffect(() => {
+    if (availableProducts && availableProducts.length > 0) {
+      const filtered = availableProducts.filter(product => 
+        product.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+        product.type.toLowerCase().includes(productSearch.toLowerCase())
+      );
+      setProductList(filtered);
+    }
+  }, [productSearch, availableProducts]);
+  
+  // Calculate order totals whenever items, quantities, or prices change
+  useEffect(() => {
+    const subtotal = formData.items.reduce((sum, item) => {
+      return sum + (item.quantity * (item.product?.rentalPrice || 0));
+    }, 0);
+    
+    const tax = (subtotal * (formData.taxRate / 100)) || 0;
+    const discount = parseFloat(formData.discount) || 0;
+    const total = subtotal + tax - discount;
+    
+    setFormData(prev => ({
+      ...prev,
+      subtotal: subtotal,
+      tax: tax,
+      totalAmount: total > 0 ? total : 0
+    }));
+  }, [formData.items, formData.discount, formData.taxRate]);
+  
+  // Add item to order
+  const addItemToOrder = () => {
+    if (!selectedProduct || quantity < 1) return;
+    
+    setFormData(prev => {
+      const existingItemIndex = prev.items.findIndex(
+        item => item.product?._id === selectedProduct._id
+      );
+      
+      if (existingItemIndex >= 0) {
+        // Update quantity if item already exists
+        const updatedItems = [...prev.items];
+        updatedItems[existingItemIndex].quantity += quantity;
+        return { ...prev, items: updatedItems };
+      } else {
+        // Add new item
+        const newItem = {
+          product: selectedProduct,
+          quantity: quantity,
+          unitPrice: selectedProduct.rentalPrice,
+          name: selectedProduct.name
+        };
+        return { ...prev, items: [...prev.items, newItem] };
+      }
+    });
+    
+    // Reset selection
+    setSelectedProduct(null);
+    setProductSearch('');
+    setQuantity(1);
+  };
+  
+  // Update item quantity
+  const updateItemQuantity = (index, newQuantity) => {
+    if (newQuantity < 1) return;
+    
+    setFormData(prev => {
+      const updatedItems = [...prev.items];
+      updatedItems[index].quantity = newQuantity;
+      return { ...prev, items: updatedItems };
+    });
+  };
+  
+  // Remove item from order
+  const removeItem = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -157,7 +260,11 @@ const OrdersPage = () => {
       notes: order.notes || '',
       paymentStatus: order.paymentStatus || 'pending',
       deposit: order.deposit || 0,
-      totalAmount: order.totalAmount || 0
+      totalAmount: order.totalAmount || 0,
+      discount: order.discount || 0,
+      taxRate: order.taxRate || 16,
+      subtotal: order.subtotal || 0,
+      tax: order.tax || 0
     });
     setIsDialogOpen(true);
   };
@@ -439,6 +546,25 @@ const OrdersPage = () => {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="discount">Discount (Ksh)</Label>
+                <Input
+                  id="discount"
+                  type="number"
+                  value={formData.discount}
+                  onChange={(e) => setFormData({...formData, discount: parseFloat(e.target.value) || 0})}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Subtotal (Ksh)</Label>
+                <div className="p-2 border rounded-md bg-gray-50">
+                  {formData.subtotal?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="totalAmount">Total Amount (Ksh)</Label>
                 <Input
                   id="totalAmount"
@@ -449,6 +575,170 @@ const OrdersPage = () => {
                   required
                 />
               </div>
+            </div>
+
+            {/* Order Items Section */}
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex justify-between items-center">
+                <h4 className="font-medium">Order Items</h4>
+                <div className="flex items-center space-x-2">
+                  <div className="relative flex-1 max-w-xs">
+                    <Input
+                      type="text"
+                      placeholder="Search products..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="pr-10"
+                    />
+                    <Search className="absolute right-3 top-2.5 h-4 w-4 text-gray-400" />
+                  </div>
+                  <Select 
+                    value={selectedProduct?._id || ''} 
+                    onValueChange={(value) => {
+                      const product = availableProducts.find(p => p._id === value);
+                      setSelectedProduct(product || null);
+                    }}
+                  >
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Select a product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {productList.map((product) => (
+                        <SelectItem key={product._id} value={product._id}>
+                          {product.name} - Ksh {product.rentalPrice?.toLocaleString()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      disabled={quantity <= 1}
+                    >
+                      <MinusCircle className="h-4 w-4" />
+                    </Button>
+                    <Input 
+                      type="number" 
+                      min="1" 
+                      value={quantity} 
+                      onChange={(e) => setQuantity(parseInt(e.target.value) || 1)} 
+                      className="w-16 text-center"
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setQuantity(quantity + 1)}
+                    >
+                      <PlusCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button 
+                    type="button" 
+                    onClick={addItemToOrder}
+                    disabled={!selectedProduct}
+                  >
+                    <PackagePlus className="h-4 w-4 mr-2" />
+                    Add
+                  </Button>
+                </div>
+              </div>
+              
+              {formData.items.length > 0 ? (
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead className="w-[100px]">Price</TableHead>
+                        <TableHead className="w-[150px]">Quantity</TableHead>
+                        <TableHead className="text-right w-[100px]">Total</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {formData.items.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell>
+                            <div className="font-medium">{item.product?.name || item.name}</div>
+                            <div className="text-xs text-gray-500">{item.product?.type || 'N/A'}</div>
+                          </TableCell>
+                          <TableCell>Ksh {item.unitPrice?.toLocaleString()}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 w-8 p-0"
+                                onClick={() => updateItemQuantity(index, item.quantity - 1)}
+                                disabled={item.quantity <= 1}
+                              >
+                                <MinusCircle className="h-4 w-4" />
+                              </Button>
+                              <Input 
+                                type="number" 
+                                min="1" 
+                                value={item.quantity} 
+                                onChange={(e) => updateItemQuantity(index, parseInt(e.target.value) || 1)} 
+                                className="w-16 text-center"
+                              />
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 w-8 p-0"
+                                onClick={() => updateItemQuantity(index, item.quantity + 1)}
+                              >
+                                <PlusCircle className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            Ksh {(item.quantity * item.unitPrice).toLocaleString()}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                              onClick={() => removeItem(index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  
+                  {/* Order Summary */}
+                  <div className="border-t p-4 space-y-2">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span>Ksh {formData.subtotal?.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Tax ({formData.taxRate}%):</span>
+                      <span>Ksh {formData.tax?.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between font-medium border-t pt-2">
+                      <span>Total:</span>
+                      <span>Ksh {formData.totalAmount?.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg">
+                  <Package className="h-12 w-12 text-gray-400 mb-2" />
+                  <p className="text-gray-500">No items added to this order</p>
+                  <p className="text-sm text-gray-400">Search and add products above</p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

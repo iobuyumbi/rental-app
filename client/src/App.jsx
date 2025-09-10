@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { Toaster } from './components/ui/sonner';
+import { Toaster, toast } from 'sonner';
 import ErrorBoundary from './components/ErrorBoundary';
+import { initializeServiceWorker } from './utils/serviceWorkerRegistration';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -138,6 +140,74 @@ const AppRoutes = () => {
 
 // Main App Component
 function App() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [registration, setRegistration] = useState(null);
+
+  // Initialize service worker
+  useEffect(() => {
+    const initServiceWorker = async () => {
+      try {
+        const reg = await initializeServiceWorker();
+        if (reg) {
+          setRegistration(reg);
+          
+          // Listen for updates
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  setUpdateAvailable(true);
+                  toast.info('A new version is available!', {
+                    action: {
+                      label: 'Update',
+                      onClick: () => window.location.reload(),
+                    },
+                    duration: 10000,
+                  });
+                }
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Service worker registration failed:', error);
+      }
+    };
+
+    initServiceWorker();
+
+    // Set up online/offline detection
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast.success('You are back online', { duration: 3000 });
+      // Sync any pending changes when coming back online
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'SYNC_DATA' });
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.warning('You are currently offline. Some features may be limited.', { 
+        duration: 5000,
+        position: 'top-center'
+      });
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial check
+    setIsOnline(navigator.onLine);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const handleResetError = () => {
     // Clear any error-related state if needed
     console.log('Error boundary was reset');
@@ -145,12 +215,19 @@ function App() {
 
   return (
     <ErrorBoundary onReset={handleResetError}>
-      <Router>
-        <AuthProvider>
-          <Toaster position="top-right" />
-          <AppRoutes />
-        </AuthProvider>
-      </Router>
+      <div className={`app ${!isOnline ? 'offline' : ''}`}>
+        {!isOnline && (
+          <div className="bg-yellow-100 text-yellow-800 p-2 text-center text-sm">
+            You are currently offline. Some features may be limited.
+          </div>
+        )}
+        <Router>
+          <AuthProvider>
+            <Toaster position="top-right" />
+            <AppRoutes isOnline={isOnline} />
+          </AuthProvider>
+        </Router>
+      </div>
     </ErrorBoundary>
   );
 }
