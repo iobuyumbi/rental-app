@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -31,16 +31,17 @@ import { Textarea } from '../components/ui/textarea';
 import { Plus, Search, Edit, Trash2, Package } from 'lucide-react';
 import { inventoryAPI } from '../services/api';
 import { toast } from 'sonner';
+import useApi from '../hooks/useApi';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const InventoryPage = () => {
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedCondition, setSelectedCondition] = useState('');
+  const [selectedCategory, setSelectedCategory] = '';
+  const [selectedCondition, setSelectedCondition] = '';
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  
+  // Form state
   const [formData, setFormData] = useState({
     name: '',
     category: '',
@@ -52,37 +53,73 @@ const InventoryPage = () => {
     description: '',
     imageUrl: ''
   });
+  
+  // Fetch products and categories using the useApi hook
+  const { 
+    data: productsData = [], 
+    loading: productsLoading, 
+    error: productsError, 
+    refetch: refetchProducts 
+  } = useApi(() => inventoryAPI.getProducts({}));
+  
+  const { 
+    data: categoriesData = [], 
+    loading: categoriesLoading, 
+    error: categoriesError 
+  } = useApi(() => inventoryAPI.getCategories());
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [productsResponse, categoriesResponse] = await Promise.all([
-        inventoryAPI.getProducts(),
-        inventoryAPI.getCategories()
-      ]);
+  // Memoized filtered products
+  const filteredProducts = useMemo(() => {
+    if (!productsData || !Array.isArray(productsData)) return [];
+    
+    return productsData.filter(product => {
+      const matchesSearch = product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          product.type?.toLowerCase().includes(searchTerm.toLowerCase());
       
-      setProducts(productsResponse.data.data);
-      setCategories(categoriesResponse.data.data);
-    } catch (error) {
-      console.error('Error loading inventory data:', error);
-      toast.error('Failed to load inventory data');
-    } finally {
-      setLoading(false);
+      const matchesCategory = !selectedCategory || product.category?._id === selectedCategory;
+      const matchesCondition = !selectedCondition || product.condition === selectedCondition;
+      
+      return matchesSearch && matchesCategory && matchesCondition;
+    });
+  }, [productsData, searchTerm, selectedCategory, selectedCondition]);
+
+  // Handle API errors
+  useEffect(() => {
+    if (productsError) {
+      toast.error(`Failed to load products: ${productsError.message}`);
     }
-  };
+    if (categoriesError) {
+      toast.error(`Failed to load categories: ${categoriesError.message}`);
+    }
+  }, [productsError, categoriesError]);
+
+  // Reset form when dialog is closed
+  useEffect(() => {
+    if (!isAddDialogOpen) {
+      setEditingProduct(null);
+      setFormData({
+        name: '',
+        category: '',
+        type: '',
+        rentalPrice: '',
+        purchasePrice: '',
+        quantityInStock: '',
+        condition: 'Good',
+        description: '',
+        imageUrl: ''
+      });
+    }
+  }, [isAddDialogOpen]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const productData = {
         ...formData,
-        rentalPrice: parseFloat(formData.rentalPrice),
-        purchasePrice: parseFloat(formData.purchasePrice),
-        quantityInStock: parseInt(formData.quantityInStock)
+        rentalPrice: parseFloat(formData.rentalPrice) || 0,
+        purchasePrice: parseFloat(formData.purchasePrice) || 0,
+        quantityInStock: parseInt(formData.quantityInStock) || 0
       };
 
       if (editingProduct) {
@@ -94,25 +131,23 @@ const InventoryPage = () => {
       }
 
       setIsAddDialogOpen(false);
-      setEditingProduct(null);
-      resetForm();
-      loadData();
+      refetchProducts(); // Refresh the products list
     } catch (error) {
       console.error('Error saving product:', error);
-      toast.error('Failed to save product');
+      toast.error(error.response?.data?.message || 'Failed to save product');
     }
   };
 
   const handleEdit = (product) => {
     setEditingProduct(product);
     setFormData({
-      name: product.name,
-      category: product.category._id,
-      type: product.type,
-      rentalPrice: product.rentalPrice.toString(),
-      purchasePrice: product.purchasePrice.toString(),
-      quantityInStock: product.quantityInStock.toString(),
-      condition: product.condition,
+      name: product.name || '',
+      category: product.category?._id || '',
+      type: product.type || '',
+      rentalPrice: product.rentalPrice?.toString() || '',
+      purchasePrice: product.purchasePrice?.toString() || '',
+      quantityInStock: product.quantityInStock?.toString() || '',
+      condition: product.condition || 'Good',
       description: product.description || '',
       imageUrl: product.imageUrl || ''
     });
@@ -124,36 +159,13 @@ const InventoryPage = () => {
       try {
         await inventoryAPI.deleteProduct(productId);
         toast.success('Product deleted successfully');
-        loadData();
+        refetchProducts(); // Refresh the products list
       } catch (error) {
         console.error('Error deleting product:', error);
-        toast.error('Failed to delete product');
+        toast.error(error.response?.data?.message || 'Failed to delete product');
       }
     }
   };
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      category: '',
-      type: '',
-      rentalPrice: '',
-      purchasePrice: '',
-      quantityInStock: '',
-      condition: 'Good',
-      description: '',
-      imageUrl: ''
-    });
-  };
-
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.type.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !selectedCategory || product.category._id === selectedCategory;
-    const matchesCondition = !selectedCondition || product.condition === selectedCondition;
-    
-    return matchesSearch && matchesCategory && matchesCondition;
-  });
 
   const getConditionColor = (condition) => {
     switch (condition) {
@@ -164,10 +176,10 @@ const InventoryPage = () => {
     }
   };
 
-  if (loading) {
+  if (productsLoading || categoriesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }

@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from './components/ui/sonner';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -137,13 +138,20 @@ const AppRoutes = () => {
 
 // Main App Component
 function App() {
+  const handleResetError = () => {
+    // Clear any error-related state if needed
+    console.log('Error boundary was reset');
+  };
+
   return (
-    <AuthProvider>
+    <ErrorBoundary onReset={handleResetError}>
       <Router>
-        <AppRoutes />
-        <Toaster />
+        <AuthProvider>
+          <Toaster position="top-right" />
+          <AppRoutes />
+        </AuthProvider>
       </Router>
-    </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
