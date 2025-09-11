@@ -66,10 +66,10 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <SidebarProvider>
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
-      <Sidebar open={sidebarOpen} onOpenChange={setSidebarOpen} collapsible="offcanvas">
+      <Sidebar collapsible="offcanvas">
         <SidebarHeader className="border-b border-gray-200 p-4">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -125,11 +125,7 @@ const Layout = ({ children }) => {
         <header className="bg-white border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <SidebarTrigger asChild>
-                <Button variant="ghost" size="sm" className="lg:hidden">
-                  <Menu className="w-5 h-5" />
-                </Button>
-              </SidebarTrigger>
+              <SidebarTrigger className="lg:hidden" />
               <h1 className="text-xl font-semibold text-gray-900">
                 {navigation.find(item => item.href === location.pathname)?.name || 'Dashboard'}
               </h1>
