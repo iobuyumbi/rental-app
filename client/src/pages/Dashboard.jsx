@@ -35,20 +35,20 @@ const Dashboard = () => {
       setLoading(true);
       
       // Load inventory status
-      const inventoryResponse = await reportsAPI.getInventoryStatus();
-      const inventoryData = inventoryResponse.data.data;
+      const inventoryResponse = await reportsAPI.inventoryStatus();
+      const inventoryData = inventoryResponse.data;
       
       // Load orders
       const ordersResponse = await ordersAPI.getOrders();
       const ordersData = ordersResponse.data.data;
       
       // Load workers
-      const workersResponse = await casualsAPI.getWorkers();
-      const workersData = workersResponse.data.data;
+      const workersResponse = await casualsAPI.workers.get();
+      const workersData = workersResponse.data;
       
       // Load overdue returns
-      const overdueResponse = await reportsAPI.getOverdueReturns();
-      const overdueData = overdueResponse.data.data;
+      const overdueResponse = await reportsAPI.overdueReturns();
+      const overdueData = overdueResponse.data;
       
       // Calculate revenue (simplified - sum of all order amounts)
       const totalRevenue = ordersData.reduce((sum, order) => sum + order.totalAmount, 0);
