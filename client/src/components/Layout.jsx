@@ -9,7 +9,8 @@ import {
   SidebarMenu, 
   SidebarMenuItem, 
   SidebarMenuButton, 
-  SidebarTrigger 
+  SidebarTrigger,
+  SidebarProvider 
 } from './ui/sidebar';
 import { 
   DropdownMenu, 
@@ -65,6 +66,7 @@ const Layout = ({ children }) => {
   };
 
   return (
+    <SidebarProvider>
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
       <Sidebar open={sidebarOpen} onOpenChange={setSidebarOpen} collapsible="offcanvas">
@@ -184,6 +186,7 @@ const Layout = ({ children }) => {
         </main>
       </div>
     </div>
+    </SidebarProvider>
   );
 };
 
