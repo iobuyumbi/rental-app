@@ -10,10 +10,36 @@ const PRECACHE_ASSETS = [
   '/index.html',
   '/favicon.ico',
   '/manifest.json',
-  '/logo192.png',
-  '/logo512.png',
+  '/pwa-192x192.png',
+  '/pwa-512x512.png',
+  '/offline.html',
   // Add other static assets you want to cache
 ];
+
+// Cache configuration
+const CACHE_CONFIG = {
+  // Cache successful GET requests for these paths
+  cacheablePaths: [
+    '/',
+    '/index.html',
+    '/manifest.json',
+    '/offline.html',
+    /\.[a-z0-9]+\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/,
+  ],
+  
+  // Don't cache these paths
+  blacklist: [
+    '/sockjs-node',
+    '/api',
+    '/socket.io',
+  ],
+  
+  // Cache API responses separately
+  apiCacheName: API_CACHE,
+  
+  // Cache version
+  version: 'v1',
+};
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
@@ -21,9 +47,22 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Caching static assets');
-        return cache.addAll(PRECACHE_ASSETS);
+        return Promise.all(
+          PRECACHE_ASSETS.map((asset) => {
+            // Skip favicon.ico if it's not found
+            if (asset === '/favicon.ico') {
+              return Promise.resolve();
+            }
+            return cache.add(asset).catch(err => {
+              console.warn(`Failed to cache ${asset}:`, err);
+            });
+          })
+        );
       })
-      .then(() => self.skipWaiting())
+      .then(() => {
+        console.log('All assets are now cached');
+        return self.skipWaiting();
+      })
   );
 });
 
@@ -44,10 +83,48 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Check if a request should be cached
+function shouldCache(request) {
+  const url = new URL(request.url);
+  const isHttp = url.protocol.startsWith('http');
+  const isGet = request.method === 'GET';
+  const isExtension = url.pathname.includes('extension')
+  const isDev = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  
+  // Don't cache non-GET requests, extensions, or dev server requests
+  if (!isHttp || !isGet || isExtension || isDev) {
+    return false;
+  }
+  
+  // Check against blacklist
+  if (CACHE_CONFIG.blacklist.some(path => url.pathname.startsWith(path))) {
+    return false;
+  }
+  
+  // Check if path matches cacheable patterns
+  return CACHE_CONFIG.cacheablePaths.some(pattern => {
+    if (typeof pattern === 'string') {
+      return url.pathname === pattern;
+    } else if (pattern instanceof RegExp) {
+      return pattern.test(url.pathname);
+    }
+    return false;
+  });
+}
+
 // Fetch event - serve from cache, falling back to network
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+  
+  // Skip non-GET requests (like POST, PUT, DELETE)
+  if (request.method !== 'GET') {
+    // For API requests, let them go to the network
+    if (url.pathname.startsWith('/api/')) {
+      event.respondWith(fetch(request));
+    }
+    return;
+  }
 
   // Skip non-GET requests and chrome-extension requests
   if (request.method !== 'GET' || url.protocol === 'chrome-extension:') {

@@ -81,7 +81,8 @@ const checkForUpdate = async () => {
 
 // Initialize the service worker
 const initializeServiceWorker = async () => {
-  if (process.env.NODE_ENV === 'production' || isLocalhost) {
+  // Only register service worker in production, not in development
+  if (process.env.NODE_ENV === 'production') {
     try {
       await register();
       
@@ -93,10 +94,12 @@ const initializeServiceWorker = async () => {
         window.location.reload();
       });
       
+      return registration;
     } catch (error) {
       console.error('Failed to initialize service worker:', error);
     }
   }
+  return null;
 };
 
 export { initializeServiceWorker, register, unregister, checkForUpdate };

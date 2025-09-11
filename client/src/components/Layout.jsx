@@ -67,7 +67,7 @@ const Layout = ({ children }) => {
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
-      <Sidebar open={sidebarOpen} onOpenChange={setSidebarOpen}>
+      <Sidebar open={sidebarOpen} onOpenChange={setSidebarOpen} collapsible="offcanvas">
         <SidebarHeader className="border-b border-gray-200 p-4">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">

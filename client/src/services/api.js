@@ -190,31 +190,120 @@ const handleError = (error) => {
   throw error;
 };
 
+// Helper function to create offline-aware API methods
+const createOfflineAPI = (endpoint, options = {}) => {
+  const { cacheKey, ttl = 3600000 } = options; // Default TTL: 1 hour
+  
+  return {
+    // GET request with caching
+    get: (id = '', params = {}) => {
+      const url = id ? `${endpoint}/${id}` : endpoint;
+      return api.get(url, { 
+        params,
+        headers: { 'x-cache-max-age': ttl }
+      }).then(handleResponse).catch(handleError);
+    },
+    
+    // POST request with offline support
+    create: (data) => {
+      return api.post(endpoint, data, {
+        headers: { 'x-offline-key': cacheKey }
+      }).then(handleResponse).catch(handleError);
+    },
+    
+    // PUT request with offline support
+    update: (id, data) => {
+      return api.put(`${endpoint}/${id}`, data, {
+        headers: { 'x-offline-key': cacheKey }
+      }).then(handleResponse).catch(handleError);
+    },
+    
+    // DELETE request with offline support
+    delete: (id) => {
+      return api.delete(`${endpoint}/${id}`, {
+        headers: { 'x-offline-key': cacheKey }
+      }).then(handleResponse).catch(handleError);
+    },
+    
+    // Custom method with offline support
+    custom: (method, path = '', data = null) => {
+      const url = path ? `${endpoint}/${path}` : endpoint;
+      const config = {
+        method,
+        url,
+        headers: { 'x-offline-key': cacheKey }
+      };
+      
+      if (data) {
+        if (['get', 'head'].includes(method.toLowerCase())) {
+          config.params = data;
+        } else {
+          config.data = data;
+        }
+      }
+      
+      return api(config).then(handleResponse).catch(handleError);
+    }
+  };
+};
+
 // Auth API
 export const authAPI = {
-  login: (credentials) => api.post('/users/login', credentials).then(handleResponse).catch(handleError),
-  register: (userData) => api.post('/users/register', userData).then(handleResponse).catch(handleError),
-  getProfile: () => api.get('/users/profile').then(handleResponse).catch(handleError),
-  updateProfile: (userData) => api.put('/users/profile', userData).then(handleResponse).catch(handleError),
-  getUsers: () => api.get('/users').then(handleResponse).catch(handleError),
-  updateUser: (id, userData) => api.put(`/users/${id}`, userData).then(handleResponse).catch(handleError),
-  deleteUser: (id) => api.delete(`/users/${id}`).then(handleResponse).catch(handleError),
-  updateProfile: (userData) => api.put('/users/profile', userData),
-  getUsers: () => api.get('/users'),
-  updateUser: (id, userData) => api.put(`/users/${id}`, userData),
-  deleteUser: (id) => api.delete(`/users/${id}`),
+  login: (credentials) => 
+    api.post('/users/login', credentials, { 
+      headers: { 'x-offline-key': 'auth' } 
+    }).then(handleResponse).catch(handleError),
+    
+  register: (userData) => 
+    api.post('/users/register', userData, { 
+      headers: { 'x-offline-key': 'auth' } 
+    }).then(handleResponse).catch(handleError),
+    
+  getProfile: () => 
+    api.get('/users/profile', { 
+      headers: { 'x-cache-max-age': '300000' } // 5 minutes
+    }).then(handleResponse).catch(handleError),
+    
+  updateProfile: (userData) => 
+    api.put('/users/profile', userData, { 
+      headers: { 'x-offline-key': 'profile' } 
+    }).then(handleResponse).catch(handleError),
+    
+  // User management
+  users: createOfflineAPI('/users', { cacheKey: 'users' })
 };
 
 // Inventory API
 export const inventoryAPI = {
-  getCategories: () => api.get('/inventory/categories'),
-  addCategory: (categoryData) => api.post('/inventory/categories', categoryData),
-  getProducts: (params) => api.get('/inventory/products', { params }),
-  getProduct: (id) => api.get(`/inventory/products/${id}`),
-  addProduct: (productData) => api.post('/inventory/products', productData),
-  updateProduct: (id, productData) => api.put(`/inventory/products/${id}`, productData),
-  deleteProduct: (id) => api.delete(`/inventory/products/${id}`),
-  getAvailableProducts: () => api.get('/inventory/products/available'),
+  // Categories
+  categories: createOfflineAPI('/inventory/categories', { 
+    cacheKey: 'inventory_categories',
+    ttl: 3600000 // 1 hour
+  }),
+  
+  // Products
+  products: createOfflineAPI('/inventory/products', {
+    cacheKey: 'inventory_products',
+    ttl: 300000 // 5 minutes
+  }),
+  
+  // Available products (heavily cached)
+  getAvailableProducts: () => 
+    api.get('/inventory/products/available', {
+      headers: { 'x-cache-max-age': '300000' } // 5 minutes
+    }).then(handleResponse).catch(handleError),
+    
+  // Search products with offline support
+  searchProducts: (query, params = {}) => {
+    const cacheKey = `search_${encodeURIComponent(query)}`;
+    return api.get('/inventory/products/search', {
+      params: { q: query, ...params },
+      headers: { 
+        'x-cache-key': cacheKey,
+        'x-cache-max-age': '300000' // 5 minutes
+      }
+    }).then(handleResponse).catch(handleError);
+  }
 };
 
 // Orders API
@@ -235,13 +324,40 @@ export const ordersAPI = {
 
 // Casual Workers API
 export const casualsAPI = {
-  getWorkers: () => api.get('/casuals/workers'),
-  addWorker: (workerData) => api.post('/casuals/workers', workerData),
-  updateWorker: (id, workerData) => api.put(`/casuals/workers/${id}`, workerData),
-  recordAttendance: (attendanceData) => api.post('/casuals/attendance', attendanceData),
-  getAttendance: (params) => api.get('/casuals/attendance', { params }),
-  calculateRemuneration: (id, params) => api.get(`/casuals/${id}/remuneration`, { params }),
-  getRemunerationSummary: (params) => api.get('/casuals/remuneration-summary', { params }),
+  // Workers management
+  workers: createOfflineAPI('/casuals/workers', {
+    cacheKey: 'casual_workers',
+    ttl: 86400000 // 24 hours
+  }),
+  
+  // Attendance
+  attendance: {
+    record: (attendanceData) =>
+      api.post('/casuals/attendance', attendanceData, {
+        headers: { 'x-offline-key': `attendance_${Date.now()}` }
+      }).then(handleResponse).catch(handleError),
+      
+    list: (params = {}) =>
+      api.get('/casuals/attendance', { 
+        params,
+        headers: { 'x-cache-max-age': '300000' } // 5 minutes
+      }).then(handleResponse).catch(handleError)
+  },
+  
+  // Remuneration
+  remuneration: {
+    calculate: (id, params = {}) =>
+      api.get(`/casuals/${id}/remuneration`, {
+        params,
+        headers: { 'x-cache-max-age': '300000' } // 5 minutes
+      }).then(handleResponse).catch(handleError),
+      
+    summary: (params = {}) =>
+      api.get('/casuals/remuneration-summary', {
+        params,
+        headers: { 'x-cache-max-age': '300000' } // 5 minutes
+      }).then(handleResponse).catch(handleError)
+  }
 };
 
 // Transactions API
@@ -256,12 +372,63 @@ export const transactionsAPI = {
 
 // Reports API
 export const reportsAPI = {
-  generateInvoice: (orderId) => api.get(`/reports/invoices/${orderId}`),
-  generateReceipt: (orderId) => api.get(`/reports/receipts/${orderId}`),
-  getDiscountApprovals: (params) => api.get('/reports/discount-approvals', { params }),
-  getCasualRemunerationSummary: (params) => api.get('/reports/casual-remuneration-summary', { params }),
-  getInventoryStatus: () => api.get('/reports/inventory-status'),
-  getOverdueReturns: () => api.get('/reports/overdue-returns'),
+  // Invoices
+  invoices: {
+    generate: (orderId) =>
+      api.get(`/reports/invoices/${orderId}`, {
+        responseType: 'blob',
+        headers: { 'x-cache-max-age': '0' } // No caching for generated files
+      }).then(handleResponse).catch(handleError),
+      
+    preview: (orderId) =>
+      api.get(`/reports/invoices/${orderId}/preview`, {
+        headers: { 'x-cache-max-age': '300000' } // 5 minutes
+      }).then(handleResponse).catch(handleError)
+  },
+  
+  // Receipts
+  receipts: {
+    generate: (orderId) =>
+      api.get(`/reports/receipts/${orderId}`, {
+        responseType: 'blob',
+        headers: { 'x-cache-max-age': '0' } // No caching for generated files
+      }).then(handleResponse).catch(handleError)
+  },
+  
+  // Discount approvals
+  discountApprovals: (params = {}) =>
+    api.get('/reports/discount-approvals', {
+      params,
+      headers: { 'x-cache-max-age': '300000' } // 5 minutes
+    }).then(handleResponse).catch(handleError),
+    
+  // Casual worker reports
+  casualRemuneration: (params = {}) =>
+    api.get('/reports/casual-remuneration-summary', {
+      params,
+      headers: { 'x-cache-max-age': '3600000' } // 1 hour
+    }).then(handleResponse).catch(handleError),
+    
+  // Inventory status
+  inventoryStatus: () =>
+    api.get('/reports/inventory-status', {
+      headers: { 'x-cache-max-age': '300000' } // 5 minutes
+    }).then(handleResponse).catch(handleError),
+    
+  // Overdue returns
+  overdueReturns: (params = {}) =>
+    api.get('/reports/overdue-returns', {
+      params,
+      headers: { 'x-cache-max-age': '300000' } // 5 minutes
+    }).then(handleResponse).catch(handleError),
+    
+  // Export reports
+  export: (reportType, format = 'csv', params = {}) =>
+    api.get(`/reports/export/${reportType}.${format}`, {
+      params,
+      responseType: 'blob',
+      headers: { 'x-cache-max-age': '0' } // No caching for exports
+    }).then(handleResponse).catch(handleError)
 };
 
 export default api;

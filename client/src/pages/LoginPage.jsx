@@ -24,7 +24,6 @@ const LoginPage = () => {
       [name]: value
     }));
     
-    // Clear error when user starts typing
     if (error) {
       clearError();
     }
@@ -32,15 +31,20 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Basic validation
+    if (!formData.username || !formData.password) {
+      return; // Let the form validation handle this
+    }
+    
     setIsLoading(true);
     
     try {
-      const result = await login(formData);
-      if (!result.success) {
-        // Error is already set in the context
-      }
+      await login(formData);
+      // On successful login, the AuthProvider will handle the redirect
     } catch (err) {
       console.error('Login error:', err);
+      // Error is already set in the context by the login function
     } finally {
       setIsLoading(false);
     }
