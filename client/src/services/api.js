@@ -314,6 +314,7 @@ export const ordersAPI = {
   getOrder: (id) => api.get(`/orders/${id}`),
   createOrder: (orderData) => api.post('/orders', orderData),
   updateOrder: (id, orderData) => api.put(`/orders/${id}`, orderData),
+  deleteOrder: (id) => api.delete(`/orders/${id}`),
   markReturned: (id) => api.put(`/orders/${id}/return`),
   requestDiscount: (id, discountData) => api.post(`/orders/${id}/discount/request`, discountData),
   approveDiscount: (id, approvalData) => api.put(`/orders/${id}/discount/approve`, approvalData),

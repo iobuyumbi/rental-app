@@ -27,7 +27,7 @@ import {
   AlertCircle,
   DollarSign
 } from 'lucide-react';
-import { ordersAPI, inventoryAPI, clientsAPI } from '../services/api';
+import { ordersAPI, inventoryAPI } from '../services/api';
 import { toast } from 'sonner';
 import DataTable from '../components/common/DataTable';
 import SearchFilters from '../components/common/SearchFilters';
@@ -80,7 +80,7 @@ const OrdersPage = () => {
       setLoading(true);
       const [ordersResponse, clientsResponse, productsResponse] = await Promise.all([
         ordersAPI.getOrders({}),
-        clientsAPI.getClients(),
+        ordersAPI.getClients(),
         inventoryAPI.getAvailableProducts()
       ]);
       
