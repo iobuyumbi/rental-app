@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -15,6 +16,7 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
+  const navigate = useNavigate();
   const { login, error, clearError } = useAuth();
 
   const handleChange = (e) => {
@@ -40,8 +42,11 @@ const LoginPage = () => {
     setIsLoading(true);
     
     try {
-      await login(formData);
-      // On successful login, the AuthProvider will handle the redirect
+      const result = await login(formData);
+      if (result && result.success) {
+        // Navigate to dashboard on successful login
+        navigate('/dashboard');
+      }
     } catch (err) {
       console.error('Login error:', err);
       // Error is already set in the context by the login function

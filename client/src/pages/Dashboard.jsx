@@ -34,36 +34,79 @@ const Dashboard = () => {
     try {
       setLoading(true);
       
-      // Load inventory status
-      const inventoryResponse = await reportsAPI.inventoryStatus();
-      const inventoryData = inventoryResponse.data;
+      // Initialize default stats
+      const defaultStats = {
+        totalProducts: 0,
+        totalOrders: 0,
+        totalWorkers: 0,
+        totalRevenue: 0,
+        pendingOrders: 0,
+        overdueReturns: 0
+      };
       
-      // Load orders
-      const ordersResponse = await ordersAPI.getOrders();
-      const ordersData = ordersResponse.data.data;
+      // Load data with individual error handling for each API call
+      const promises = [
+        // Load inventory status
+        reportsAPI.inventoryStatus().catch(err => {
+          console.warn('Failed to load inventory status:', err);
+          return { data: { totalProducts: 0 } };
+        }),
+        
+        // Load orders
+        ordersAPI.getOrders().catch(err => {
+          console.warn('Failed to load orders:', err);
+          return { data: { data: [] } };
+        }),
+        
+        // Load workers
+        casualsAPI.workers.get().catch(err => {
+          console.warn('Failed to load workers:', err);
+          return { data: [] };
+        }),
+        
+        // Load overdue returns
+        reportsAPI.overdueReturns().catch(err => {
+          console.warn('Failed to load overdue returns:', err);
+          return { data: [] };
+        })
+      ];
       
-      // Load workers
-      const workersResponse = await casualsAPI.workers.get();
-      const workersData = workersResponse.data;
+      const [inventoryResponse, ordersResponse, workersResponse, overdueResponse] = await Promise.allSettled(promises);
       
-      // Load overdue returns
-      const overdueResponse = await reportsAPI.overdueReturns();
-      const overdueData = overdueResponse.data;
+      // Extract data safely with fallbacks
+      const inventoryData = inventoryResponse.status === 'fulfilled' ? inventoryResponse.value.data : { totalProducts: 0 };
+      const ordersData = ordersResponse.status === 'fulfilled' ? (ordersResponse.value.data.data || ordersResponse.value.data || []) : [];
+      const workersData = workersResponse.status === 'fulfilled' ? (workersResponse.value.data || []) : [];
+      const overdueData = overdueResponse.status === 'fulfilled' ? (overdueResponse.value.data || []) : [];
       
-      // Calculate revenue (simplified - sum of all order amounts)
-      const totalRevenue = ordersData.reduce((sum, order) => sum + order.totalAmount, 0);
-      const pendingOrders = ordersData.filter(order => order.status === 'Pending').length;
+      // Calculate revenue safely
+      const totalRevenue = Array.isArray(ordersData) ? ordersData.reduce((sum, order) => {
+        const amount = parseFloat(order.totalAmount) || 0;
+        return sum + amount;
+      }, 0) : 0;
+      
+      const pendingOrders = Array.isArray(ordersData) ? ordersData.filter(order => order.status === 'Pending').length : 0;
       
       setStats({
-        totalProducts: inventoryData.totalProducts,
-        totalOrders: ordersData.length,
-        totalWorkers: workersData.length,
+        totalProducts: inventoryData.totalProducts || 0,
+        totalOrders: Array.isArray(ordersData) ? ordersData.length : 0,
+        totalWorkers: Array.isArray(workersData) ? workersData.length : 0,
         totalRevenue,
         pendingOrders,
-        overdueReturns: overdueData.length
+        overdueReturns: Array.isArray(overdueData) ? overdueData.length : 0
       });
+      
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      // Set default stats even if everything fails
+      setStats({
+        totalProducts: 0,
+        totalOrders: 0,
+        totalWorkers: 0,
+        totalRevenue: 0,
+        pendingOrders: 0,
+        overdueReturns: 0
+      });
     } finally {
       setLoading(false);
     }
@@ -109,7 +152,7 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-none space-y-6">
       {/* Welcome Section */}
       <div className="flex items-center justify-between">
         <div>
@@ -122,7 +165,7 @@ const Dashboard = () => {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Products</CardTitle>
@@ -205,7 +248,7 @@ const Dashboard = () => {
       {/* Quick Actions */}
       <div>
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
           {quickActions.map((action) => (
             <Card key={action.title} className="hover:shadow-md transition-shadow">
               <CardHeader>
