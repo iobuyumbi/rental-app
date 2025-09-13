@@ -105,7 +105,7 @@ const OrdersPage = () => {
       order.client?.phone?.includes(searchTerm) ||
       order._id?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = !statusFilter || order.status === statusFilter;
+    const matchesStatus = !statusFilter || statusFilter === '__all__' || order.status === statusFilter;
     
     return matchesSearch && matchesStatus;
   });

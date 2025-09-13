@@ -79,8 +79,8 @@ const InventoryPage = () => {
       product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.type?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesCategory = !selectedCategory || product.category?._id === selectedCategory;
-    const matchesCondition = !selectedCondition || product.condition === selectedCondition;
+    const matchesCategory = !selectedCategory || selectedCategory === '__all__' || product.category?._id === selectedCategory;
+    const matchesCondition = !selectedCondition || selectedCondition === '__all__' || product.condition === selectedCondition;
     
     return matchesSearch && matchesCategory && matchesCondition;
   });

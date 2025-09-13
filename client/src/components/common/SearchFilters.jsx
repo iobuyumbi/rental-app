@@ -29,14 +29,14 @@ const SearchFilters = ({
         <div key={filter.key} className="space-y-2">
           <Label htmlFor={filter.key}>{filter.label}</Label>
           <Select
-            value={filter.value}
-            onValueChange={filter.onChange}
+            value={filter.value || "__all__"}
+            onValueChange={(value) => filter.onChange(value === "__all__" ? "" : value)}
           >
             <SelectTrigger>
               <SelectValue placeholder={filter.placeholder} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">{filter.allLabel || 'All'}</SelectItem>
+              <SelectItem value="__all__">{filter.allLabel || 'All'}</SelectItem>
               {filter.options.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
