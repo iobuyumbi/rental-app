@@ -1,143 +1,294 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Textarea } from '../components/ui/textarea';
 import { 
-  Wrench, 
-  Plus, 
   ShoppingCart, 
-  Package, 
+  Wrench, 
   DollarSign, 
-  Calendar,
-  Edit,
-  Trash2,
-  CheckCircle,
-  AlertCircle,
-  Clock
+  Plus, 
+  AlertCircle, 
+  Coffee,
+  Users,
+  CheckCircle
 } from 'lucide-react';
 import { transactionsAPI, inventoryAPI } from '../services/api';
 import { toast } from 'sonner';
+import DataTable from '../components/common/DataTable';
+import FormModal, { FormInput, FormSelect, FormTextarea } from '../components/common/FormModal';
+import { useDataManager } from '../hooks/useDataManager';
+import { useFormManager } from '../hooks/useFormManager';
+
+const repairStatusOptions = [
+  { value: 'Pending', label: 'Pending' },
+  { value: 'In Progress', label: 'In Progress' },
+  { value: 'Completed', label: 'Completed' },
+  { value: 'Cancelled', label: 'Cancelled' }
+];
+
+const getStatusBadgeVariant = (status) => {
+  switch (status) {
+    case 'Pending': return 'secondary';
+    case 'In Progress': return 'outline';
+    case 'Completed': return 'default';
+    case 'Cancelled': return 'destructive';
+    default: return 'secondary';
+  }
+};
 
 const TransactionsPage = () => {
-  const [loading, setLoading] = useState(true);
-  const [purchases, setPurchases] = useState([]);
-  const [repairs, setRepairs] = useState([]);
   const [products, setProducts] = useState([]);
   const [summary, setSummary] = useState({});
   const [showAddPurchase, setShowAddPurchase] = useState(false);
   const [showAddRepair, setShowAddRepair] = useState(false);
-  const [selectedRepair, setSelectedRepair] = useState(null);
-  const [newPurchase, setNewPurchase] = useState({
-    productId: '',
-    quantity: '',
-    unitCost: '',
-    supplier: '',
-    purchaseDate: new Date().toISOString().split('T')[0],
-    description: ''
-  });
-  const [newRepair, setNewRepair] = useState({
-    productId: '',
-    description: '',
-    cost: '',
-    repairDate: new Date().toISOString().split('T')[0],
-    status: 'Pending',
-    technician: ''
-  });
+  const [editingRepair, setEditingRepair] = useState(null);
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
 
+  // Create stable functions to prevent infinite re-renders
+  const fetchPurchases = useCallback(() => transactionsAPI.getPurchases(dateRange), [dateRange]);
+  const createPurchaseFn = useCallback((data) => transactionsAPI.recordPurchase(data), []);
+
+  // Data management for purchases
+  const purchasesManager = useDataManager({
+    fetchFn: fetchPurchases,
+    createFn: createPurchaseFn,
+    entityName: 'purchase'
+  });
+
+  const {
+    data: purchases,
+    loading: purchasesLoading,
+    createItem: createPurchase,
+    refresh: loadPurchases
+  } = purchasesManager;
+
+  // Create stable functions to prevent infinite re-renders
+  const fetchRepairs = useCallback(() => transactionsAPI.getRepairs(dateRange), [dateRange]);
+  const createRepairFn = useCallback((data) => transactionsAPI.recordRepair(data), []);
+  const updateRepairFn = useCallback((id, data) => transactionsAPI.updateRepair(id, data), []);
+  const fetchLaborCosts = useCallback(() => transactionsAPI.getLaborCosts(dateRange), [dateRange]);
+  const fetchLunchAllowances = useCallback(() => transactionsAPI.getLunchAllowanceCosts(dateRange), [dateRange]);
+
+  // Data management for repairs
+  const repairsManager = useDataManager({
+    fetchFn: fetchRepairs,
+    createFn: createRepairFn,
+    updateFn: updateRepairFn,
+    entityName: 'repair'
+  });
+
+  // Data management for labor costs
+  const laborManager = useDataManager({
+    fetchFn: fetchLaborCosts,
+    entityName: 'labor cost'
+  });
+
+  // Data management for lunch allowances
+  const lunchAllowanceManager = useDataManager({
+    fetchFn: fetchLunchAllowances,
+    entityName: 'lunch allowance'
+  });
+
+  const {
+    data: repairs,
+    loading: repairsLoading,
+    createItem: createRepair,
+    updateItem: updateRepair,
+    refresh: loadRepairs
+  } = repairsManager;
+
+  const {
+    data: laborCosts,
+    loading: laborLoading,
+    refresh: loadLaborCosts
+  } = laborManager;
+
+  const {
+    data: lunchAllowances,
+    loading: lunchAllowanceLoading,
+    refresh: loadLunchAllowances
+  } = lunchAllowanceManager;
+
+  // Form management for purchases
+  const purchaseForm = useFormManager({
+    initialData: {
+      productId: '',
+      quantity: '',
+      unitCost: '',
+      supplier: '',
+      purchaseDate: new Date().toISOString().split('T')[0],
+      description: ''
+    },
+    validationRules: {
+      productId: { required: true },
+      quantity: { required: true, min: 1 },
+      unitCost: { required: true, min: 0 },
+      supplier: { required: true },
+      purchaseDate: { required: true }
+    },
+    onSubmit: async (formData) => {
+      const purchaseData = {
+        ...formData,
+        quantity: parseInt(formData.quantity),
+        unitCost: parseFloat(formData.unitCost)
+      };
+      await createPurchase(purchaseData);
+      handleClosePurchaseModal();
+    }
+  });
+
+  // Form management for repairs
+  const repairForm = useFormManager({
+    initialData: {
+      productId: '',
+      description: '',
+      cost: '',
+      repairDate: new Date().toISOString().split('T')[0],
+      status: 'Pending',
+      technician: ''
+    },
+    validationRules: {
+      productId: { required: true },
+      description: { required: true },
+      cost: { required: true, min: 0 },
+      repairDate: { required: true },
+      status: { required: true }
+    },
+    onSubmit: async (formData) => {
+      const repairData = {
+        ...formData,
+        cost: parseFloat(formData.cost)
+      };
+      
+      if (editingRepair) {
+        await updateRepair(editingRepair._id, repairData);
+      } else {
+        await createRepair(repairData);
+      }
+      
+      handleCloseRepairModal();
+    }
+  });
+
+  const loading = purchasesLoading || repairsLoading || lunchAllowanceLoading;
+
   useEffect(() => {
-    loadData();
+    loadSupportingData();
   }, []);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [purchasesRes, repairsRes, productsRes, summaryRes] = await Promise.allSettled([
-        transactionsAPI.getPurchases(dateRange),
-        transactionsAPI.getRepairs(dateRange),
-        inventoryAPI.products.get(),
-        transactionsAPI.getTransactionSummary(dateRange)
-      ]);
+  // Reload data when date range changes
+  useEffect(() => {
+    loadPurchases();
+    loadRepairs();
+    loadLaborCosts();
+    loadLunchAllowances();
+    loadTransactionSummary();
+  }, [dateRange, loadPurchases, loadRepairs, loadLaborCosts, loadLunchAllowances]);
 
-      setPurchases(purchasesRes.status === 'fulfilled' ? (purchasesRes.value.data || []) : []);
-      setRepairs(repairsRes.status === 'fulfilled' ? (repairsRes.value.data || []) : []);
-      setProducts(productsRes.status === 'fulfilled' ? (productsRes.value.data || []) : []);
-      setSummary(summaryRes.status === 'fulfilled' ? (summaryRes.value.data || {}) : {});
+  const loadSupportingData = async () => {
+    try {
+      const productsRes = await inventoryAPI.products.get();
+      setProducts(productsRes.data || []);
     } catch (error) {
-      console.error('Error loading data:', error);
-      toast.error('Failed to load transactions data');
-    } finally {
-      setLoading(false);
+      console.error('Error loading products:', error);
+      toast.error('Failed to load products data');
+      setProducts([]);
     }
   };
 
-  const handleAddPurchase = async (e) => {
-    e.preventDefault();
+  const loadTransactionSummary = async () => {
     try {
-      await transactionsAPI.recordPurchase({
-        ...newPurchase,
-        quantity: parseInt(newPurchase.quantity),
-        unitCost: parseFloat(newPurchase.unitCost)
-      });
-      toast.success('Purchase recorded successfully');
-      setShowAddPurchase(false);
-      setNewPurchase({
-        productId: '',
-        quantity: '',
-        unitCost: '',
-        supplier: '',
-        purchaseDate: new Date().toISOString().split('T')[0],
-        description: ''
-      });
-      loadData();
+      const summaryRes = await transactionsAPI.getTransactionSummary(dateRange);
+      setSummary(summaryRes.data || {});
     } catch (error) {
-      console.error('Error recording purchase:', error);
-      toast.error('Failed to record purchase');
+      console.error('Error loading summary:', error);
+      setSummary({});
     }
   };
 
-  const handleAddRepair = async (e) => {
-    e.preventDefault();
+  // Modal handlers
+  const handleAddPurchase = () => {
+    purchaseForm.reset();
+    setShowAddPurchase(true);
+  };
+
+  const handleClosePurchaseModal = () => {
+    setShowAddPurchase(false);
+    purchaseForm.reset();
+  };
+
+  const handleAddRepair = () => {
+    setEditingRepair(null);
+    repairForm.reset();
+    setShowAddRepair(true);
+  };
+
+  const handleEditRepair = (repair) => {
+    setEditingRepair(repair);
+    repairForm.setFormData({
+      productId: repair.productId || '',
+      description: repair.description || '',
+      cost: repair.cost || '',
+      repairDate: repair.repairDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+      status: repair.status || 'Pending',
+      technician: repair.technician || ''
+    });
+    setShowAddRepair(true);
+  };
+
+  const handleCloseRepairModal = () => {
+    setShowAddRepair(false);
+    setEditingRepair(null);
+    repairForm.reset();
+  };
+
+  // Lunch allowance handlers
+  const handleAddLunchAllowance = () => {
+    // This would open a modal to manually add lunch allowance
+    // For now, we'll show a toast indicating this is typically auto-generated
+    toast.info('Lunch allowances are automatically created when workers are marked present. Use the edit function to modify existing entries.');
+  };
+
+  const handleEditLunchAllowance = async (allowance) => {
     try {
-      await transactionsAPI.recordRepair({
-        ...newRepair,
-        cost: parseFloat(newRepair.cost)
-      });
-      toast.success('Repair recorded successfully');
-      setShowAddRepair(false);
-      setNewRepair({
-        productId: '',
-        description: '',
-        cost: '',
-        repairDate: new Date().toISOString().split('T')[0],
-        status: 'Pending',
-        technician: ''
-      });
-      loadData();
+      // Simple prompt-based editing for now
+      const newAmount = prompt(`Edit lunch allowance amount for ${allowance.workerId?.name || 'Worker'} on ${new Date(allowance.date).toLocaleDateString()}:`, allowance.amount);
+      
+      if (newAmount !== null && !isNaN(parseFloat(newAmount))) {
+        const updatedAmount = parseFloat(newAmount);
+        if (updatedAmount >= 0) {
+          await lunchAllowanceAPI.update(allowance._id, {
+            ...allowance,
+            amount: updatedAmount
+          });
+          toast.success('Lunch allowance updated successfully');
+          loadLunchAllowances();
+        } else {
+          toast.error('Amount must be a positive number');
+        }
+      }
     } catch (error) {
-      console.error('Error recording repair:', error);
-      toast.error('Failed to record repair');
+      console.error('Error updating lunch allowance:', error);
+      toast.error('Failed to update lunch allowance');
     }
   };
 
-  const handleUpdateRepair = async (repairId, updates) => {
-    try {
-      await transactionsAPI.updateRepair(repairId, updates);
-      toast.success('Repair updated successfully');
-      loadData();
-    } catch (error) {
-      console.error('Error updating repair:', error);
-      toast.error('Failed to update repair');
+  const handleDeleteLunchAllowance = async (allowance) => {
+    if (window.confirm(`Are you sure you want to delete the lunch allowance for ${allowance.workerId?.name || 'Worker'} on ${new Date(allowance.date).toLocaleDateString()}?`)) {
+      try {
+        await lunchAllowanceAPI.delete(allowance._id);
+        toast.success('Lunch allowance deleted successfully');
+        loadLunchAllowances();
+      } catch (error) {
+        console.error('Error deleting lunch allowance:', error);
+        toast.error('Failed to delete lunch allowance');
+      }
     }
   };
 
@@ -151,8 +302,152 @@ const TransactionsPage = () => {
   };
 
   const applyDateFilter = () => {
-    loadData();
+    // Refresh data with current date range
+    purchasesManager.refresh();
+    repairsManager.refresh();
+    toast.success('Date filter applied');
   };
+
+  // Get product options for forms
+  const productOptions = products.map(product => ({
+    value: product._id,
+    label: product.name
+  }));
+
+  // Define purchase table columns
+  const purchaseColumns = [
+    {
+      header: 'Product',
+      accessor: 'productId',
+      render: (purchase) => getProductName(purchase.productId)
+    },
+    {
+      header: 'Quantity',
+      accessor: 'quantity'
+    },
+    {
+      header: 'Unit Cost',
+      accessor: 'unitCost',
+      type: 'currency'
+    },
+    {
+      header: 'Total Cost',
+      accessor: 'totalCost',
+      render: (purchase) => `Ksh ${((purchase.quantity || 0) * (purchase.unitCost || 0)).toLocaleString()}`
+    },
+    {
+      header: 'Supplier',
+      accessor: 'supplier'
+    },
+    {
+      header: 'Purchase Date',
+      accessor: 'purchaseDate',
+      type: 'date'
+    }
+  ];
+
+  // Define repair table columns
+  const repairColumns = [
+    {
+      header: 'Product',
+      accessor: 'productId',
+    },
+    {
+      header: 'Description',
+      accessor: 'description'
+    },
+    {
+      header: 'Cost',
+      accessor: 'cost',
+      type: 'currency'
+    },
+    {
+      header: 'Status',
+      accessor: 'status',
+      type: 'badge',
+      getBadgeVariant: getStatusBadgeVariant
+    },
+    {
+      header: 'Technician',
+      accessor: 'technician'
+    },
+    {
+      header: 'Repair Date',
+      accessor: 'repairDate',
+      type: 'date'
+    }
+  ];
+
+  const laborColumns = [
+    {
+      header: 'Task',
+      accessor: 'taskRate.taskName'
+    },
+    {
+      header: 'Task Type',
+      accessor: 'taskRate.taskType'
+    },
+    {
+      header: 'Order',
+      accessor: 'order.orderNumber'
+    },
+    {
+      header: 'Quantity',
+      accessor: 'quantityCompleted'
+    },
+    {
+      header: 'Rate/Unit',
+      accessor: 'taskRate.ratePerUnit',
+      type: 'currency'
+    },
+    {
+      header: 'Total Payment',
+      accessor: 'totalPayment',
+      type: 'currency'
+    },
+    {
+      header: 'Workers',
+      accessor: 'workersPresent',
+      render: (workers) => workers?.map(w => w.name).join(', ') || 'N/A'
+    },
+    {
+      header: 'Completed Date',
+      accessor: 'completedDate',
+      type: 'date'
+    }
+  ];
+
+  const lunchAllowanceColumns = [
+    {
+      header: 'Worker',
+      accessor: 'workerId.name'
+    },
+    {
+      header: 'Date',
+      accessor: 'date',
+      type: 'date'
+    },
+    {
+      header: 'Amount',
+      accessor: 'amount',
+      type: 'currency'
+    },
+    {
+      header: 'Status',
+      accessor: 'status',
+      type: 'badge',
+      getBadgeVariant: (status) => status === 'Provided' ? 'default' : 'secondary'
+    },
+    {
+      header: 'Hours Worked',
+      accessor: 'attendanceId.hoursWorked',
+      render: (hours) => `${hours || 0}h`
+    },
+    {
+      header: 'Task Description',
+      accessor: 'attendanceId.taskDescription'
+    }
+  ];
 
   if (loading) {
     return (
@@ -198,7 +493,7 @@ const TransactionsPage = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -227,7 +522,7 @@ const TransactionsPage = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Purchase Cost</p>
                 <p className="text-2xl font-bold text-green-600">
-                  KSH {summary.totalPurchaseCost?.toLocaleString() || '0'}
+                  KES {summary.purchases?.totalCost?.toLocaleString() || '0'}
                 </p>
               </div>
               <DollarSign className="h-8 w-8 text-green-600" />
@@ -240,347 +535,145 @@ const TransactionsPage = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Repair Cost</p>
                 <p className="text-2xl font-bold text-red-600">
-                  KSH {summary.totalRepairCost?.toLocaleString() || '0'}
+                  KES {summary.repairs?.totalCost?.toLocaleString() || '0'}
                 </p>
               </div>
               <Wrench className="h-8 w-8 text-red-600" />
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Labor Cost</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  KES {summary.labor?.totalCost?.toLocaleString() || '0'}
+                </p>
+              </div>
+              <Users className="h-8 w-8 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Lunch Allowances</p>
+                <p className="text-2xl font-bold text-amber-600">
+                  KES {summary.lunchAllowances?.totalCost?.toLocaleString() || '0'}
+                </p>
+              </div>
+              <Coffee className="h-8 w-8 text-amber-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Expenses</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  KES {summary.summary?.totalExpenses?.toLocaleString() || '0'}
+                </p>
+              </div>
+              <DollarSign className="h-8 w-8 text-gray-900" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs defaultValue="purchases" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="purchases">Purchases</TabsTrigger>
-          <TabsTrigger value="repairs">Repairs</TabsTrigger>
-          <TabsTrigger value="summary">Summary</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="purchases" className="flex items-center gap-2">
+            <ShoppingCart className="h-4 w-4" />
+            Purchases ({purchases.length})
+          </TabsTrigger>
+          <TabsTrigger value="repairs" className="flex items-center gap-2">
+            <Wrench className="h-4 w-4" />
+            Repairs ({repairs.length})
+          </TabsTrigger>
+          <TabsTrigger value="labor" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Labor ({laborCosts.length})
+          </TabsTrigger>
+          <TabsTrigger value="lunch" className="flex items-center gap-2">
+            <Coffee className="h-4 w-4" />
+            Lunch Allowances ({lunchAllowances.length})
+          </TabsTrigger>
+          <TabsTrigger value="summary" className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4" />
+            Summary
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="purchases" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Purchase Records</CardTitle>
-                  <CardDescription>
-                    Track inventory purchases and costs
-                  </CardDescription>
-                </div>
-                <Dialog open={showAddPurchase} onOpenChange={setShowAddPurchase}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Record Purchase
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Record New Purchase</DialogTitle>
-                      <DialogDescription>
-                        Add a new inventory purchase transaction
-                      </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleAddPurchase} className="space-y-4">
-                      <div>
-                        <Label htmlFor="productId">Product</Label>
-                        <Select value={newPurchase.productId} onValueChange={(value) => setNewPurchase(prev => ({ ...prev, productId: value }))}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select product" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products.map(product => (
-                              <SelectItem key={product._id} value={product._id}>
-                                {product.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="quantity">Quantity</Label>
-                          <Input
-                            id="quantity"
-                            type="number"
-                            min="1"
-                            value={newPurchase.quantity}
-                            onChange={(e) => setNewPurchase(prev => ({ ...prev, quantity: e.target.value }))}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="unitCost">Unit Cost (KSH)</Label>
-                          <Input
-                            id="unitCost"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={newPurchase.unitCost}
-                            onChange={(e) => setNewPurchase(prev => ({ ...prev, unitCost: e.target.value }))}
-                            required
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label htmlFor="supplier">Supplier</Label>
-                        <Input
-                          id="supplier"
-                          value={newPurchase.supplier}
-                          onChange={(e) => setNewPurchase(prev => ({ ...prev, supplier: e.target.value }))}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="purchaseDate">Purchase Date</Label>
-                        <Input
-                          id="purchaseDate"
-                          type="date"
-                          value={newPurchase.purchaseDate}
-                          onChange={(e) => setNewPurchase(prev => ({ ...prev, purchaseDate: e.target.value }))}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="description">Description</Label>
-                        <Textarea
-                          id="description"
-                          value={newPurchase.description}
-                          onChange={(e) => setNewPurchase(prev => ({ ...prev, description: e.target.value }))}
-                          placeholder="Additional details about the purchase"
-                        />
-                      </div>
-                      <Button type="submit" className="w-full">
-                        Record Purchase
-                      </Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {purchases.length === 0 ? (
-                <div className="text-center py-8">
-                  <ShoppingCart className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600">No purchases recorded yet</p>
-                  <p className="text-sm text-gray-500">Start tracking your inventory purchases</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Unit Cost</TableHead>
-                      <TableHead>Total Cost</TableHead>
-                      <TableHead>Supplier</TableHead>
-                      <TableHead>Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Array.isArray(purchases) && purchases.map((purchase) => (
-                      <TableRow key={purchase._id}>
-                        <TableCell className="font-medium">
-                          {getProductName(purchase.productId)}
-                        </TableCell>
-                        <TableCell>{purchase.quantity}</TableCell>
-                        <TableCell>KSH {purchase.unitCost?.toLocaleString()}</TableCell>
-                        <TableCell className="font-bold">
-                          KSH {(purchase.quantity * purchase.unitCost)?.toLocaleString()}
-                        </TableCell>
-                        <TableCell>{purchase.supplier}</TableCell>
-                        <TableCell>
-                          {new Date(purchase.purchaseDate).toLocaleDateString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <DataTable
+            title="Purchase Records"
+            description="Track inventory purchases and costs"
+            columns={purchaseColumns}
+            data={purchases}
+            onAdd={handleAddPurchase}
+            addLabel="Record Purchase"
+            searchable={true}
+            searchPlaceholder="Search purchases by product, supplier..."
+            loading={purchasesLoading}
+            emptyMessage="No purchases recorded. Start by recording your first purchase."
+            emptyIcon={ShoppingCart}
+          />
         </TabsContent>
 
         <TabsContent value="repairs" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Repair Records</CardTitle>
-                  <CardDescription>
-                    Track equipment repairs and maintenance
-                  </CardDescription>
-                </div>
-                <Dialog open={showAddRepair} onOpenChange={setShowAddRepair}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Record Repair
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Record New Repair</DialogTitle>
-                      <DialogDescription>
-                        Add a new equipment repair transaction
-                      </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleAddRepair} className="space-y-4">
-                      <div>
-                        <Label htmlFor="repairProductId">Product</Label>
-                        <Select value={newRepair.productId} onValueChange={(value) => setNewRepair(prev => ({ ...prev, productId: value }))}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select product" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products.map(product => (
-                              <SelectItem key={product._id} value={product._id}>
-                                {product.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label htmlFor="repairDescription">Description</Label>
-                        <Textarea
-                          id="repairDescription"
-                          value={newRepair.description}
-                          onChange={(e) => setNewRepair(prev => ({ ...prev, description: e.target.value }))}
-                          placeholder="Describe the repair work needed"
-                          required
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="repairCost">Repair Cost (KSH)</Label>
-                          <Input
-                            id="repairCost"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={newRepair.cost}
-                            onChange={(e) => setNewRepair(prev => ({ ...prev, cost: e.target.value }))}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="repairDate">Repair Date</Label>
-                          <Input
-                            id="repairDate"
-                            type="date"
-                            value={newRepair.repairDate}
-                            onChange={(e) => setNewRepair(prev => ({ ...prev, repairDate: e.target.value }))}
-                            required
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="repairStatus">Status</Label>
-                          <Select value={newRepair.status} onValueChange={(value) => setNewRepair(prev => ({ ...prev, status: value }))}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Pending">Pending</SelectItem>
-                              <SelectItem value="In Progress">In Progress</SelectItem>
-                              <SelectItem value="Completed">Completed</SelectItem>
-                              <SelectItem value="Cancelled">Cancelled</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor="technician">Technician</Label>
-                          <Input
-                            id="technician"
-                            value={newRepair.technician}
-                            onChange={(e) => setNewRepair(prev => ({ ...prev, technician: e.target.value }))}
-                            placeholder="Repair technician name"
-                          />
-                        </div>
-                      </div>
-                      <Button type="submit" className="w-full">
-                        Record Repair
-                      </Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {repairs.length === 0 ? (
-                <div className="text-center py-8">
-                  <Wrench className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600">No repairs recorded yet</p>
-                  <p className="text-sm text-gray-500">Start tracking equipment repairs</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Cost</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Technician</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Array.isArray(repairs) && repairs.map((repair) => (
-                      <TableRow key={repair._id}>
-                        <TableCell className="font-medium">
-                          {getProductName(repair.productId)}
-                        </TableCell>
-                        <TableCell>{repair.description}</TableCell>
-                        <TableCell>KSH {repair.cost?.toLocaleString()}</TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={
-                              repair.status === 'Completed' ? 'default' :
-                              repair.status === 'In Progress' ? 'secondary' :
-                              repair.status === 'Cancelled' ? 'destructive' : 'outline'
-                            }
-                          >
-                            {repair.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{repair.technician || 'N/A'}</TableCell>
-                        <TableCell>
-                          {new Date(repair.repairDate).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => {
-                                const newStatus = repair.status === 'Completed' ? 'Pending' : 'Completed';
-                                handleUpdateRepair(repair._id, { status: newStatus });
-                              }}
-                            >
-                              {repair.status === 'Completed' ? 
-                                <Clock className="h-4 w-4" /> : 
-                                <CheckCircle className="h-4 w-4" />
-                              }
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <DataTable
+            title="Repair Records"
+            description="Track equipment repairs and maintenance"
+            columns={repairColumns}
+            data={repairs}
+            onAdd={handleAddRepair}
+            addLabel="Record Repair"
+            onEdit={handleEditRepair}
+            searchable={true}
+            searchPlaceholder="Search repairs by product, technician, description..."
+            loading={repairsLoading}
+            emptyMessage="No repairs recorded. Start by recording your first repair."
+            emptyIcon={Wrench}
+          />
+        </TabsContent>
+
+        <TabsContent value="labor" className="space-y-4">
+          <DataTable
+            title="Labor Cost Records"
+            description="Track worker task completions and labor costs"
+            columns={laborColumns}
+            data={laborCosts}
+            searchable={true}
+            searchPlaceholder="Search by task, worker, order..."
+            loading={laborLoading}
+            emptyMessage="No labor costs recorded. Complete tasks in Task Management to see costs here."
+            emptyIcon={Users}
+          />
+        </TabsContent>
+
+        <TabsContent value="lunch" className="space-y-4">
+          <DataTable
+            title="Lunch Allowance Records"
+            description="Track daily lunch allowances for workers"
+            columns={lunchAllowanceColumns}
+            data={lunchAllowances}
+            onAdd={handleAddLunchAllowance}
+            addLabel="Add Lunch Allowance"
+            onEdit={handleEditLunchAllowance}
+            onDelete={handleDeleteLunchAllowance}
+            searchable={true}
+            searchPlaceholder="Search by worker, date, status..."
+            loading={lunchAllowanceLoading}
+            emptyMessage="No lunch allowances recorded. Mark workers as present to generate allowances."
+            emptyIcon={Coffee}
+          />
         </TabsContent>
 
         <TabsContent value="summary" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Purchase Summary</CardTitle>
@@ -601,7 +694,7 @@ const TransactionsPage = () => {
                     <div>
                       <p className="text-sm text-gray-600">Total Cost</p>
                       <p className="text-2xl font-bold text-green-600">
-                        KSH {summary.totalPurchaseCost?.toLocaleString() || '0'}
+                        KES {summary.purchases?.totalCost?.toLocaleString() || '0'}
                       </p>
                     </div>
                     <DollarSign className="h-8 w-8 text-green-600" />
@@ -610,7 +703,7 @@ const TransactionsPage = () => {
                     <div>
                       <p className="text-sm text-gray-600">Average Cost</p>
                       <p className="text-2xl font-bold text-purple-600">
-                        KSH {summary.averagePurchaseCost?.toLocaleString() || '0'}
+                        KES {summary.averagePurchaseCost?.toLocaleString() || '0'}
                       </p>
                     </div>
                     <Package className="h-8 w-8 text-purple-600" />
@@ -639,7 +732,7 @@ const TransactionsPage = () => {
                     <div>
                       <p className="text-sm text-gray-600">Total Cost</p>
                       <p className="text-2xl font-bold text-red-600">
-                        KSH {summary.totalRepairCost?.toLocaleString() || '0'}
+                        KES {summary.repairs?.totalCost?.toLocaleString() || '0'}
                       </p>
                     </div>
                     <DollarSign className="h-8 w-8 text-red-600" />
@@ -656,9 +749,200 @@ const TransactionsPage = () => {
                 </div>
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Lunch Allowance Summary</CardTitle>
+                <CardDescription>
+                  Overview of worker lunch allowances
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center p-4 bg-amber-50 rounded-lg">
+                    <div>
+                      <p className="text-sm text-gray-600">Total Allowances</p>
+                      <p className="text-2xl font-bold text-amber-600">{lunchAllowances.length}</p>
+                    </div>
+                    <Coffee className="h-8 w-8 text-amber-600" />
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-yellow-50 rounded-lg">
+                    <div>
+                      <p className="text-sm text-gray-600">Total Cost</p>
+                      <p className="text-2xl font-bold text-yellow-600">
+                        KES {summary.lunchAllowances?.totalCost?.toLocaleString() || '0'}
+                      </p>
+                    </div>
+                    <DollarSign className="h-8 w-8 text-yellow-600" />
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-green-50 rounded-lg">
+                    <div>
+                      <p className="text-sm text-gray-600">Provided</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {Array.isArray(lunchAllowances) ? lunchAllowances.filter(l => l.status === 'Provided').length : 0}
+                      </p>
+                    </div>
+                    <CheckCircle className="h-8 w-8 text-green-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Purchase Form Modal */}
+      <FormModal
+        isOpen={showAddPurchase}
+        onClose={handleClosePurchaseModal}
+        title="Record New Purchase"
+        onSubmit={purchaseForm.handleSubmit}
+        loading={purchaseForm.isSubmitting}
+      >
+        <FormSelect
+          label="Product"
+          name="productId"
+          value={purchaseForm.values.productId || ''}
+          onChange={purchaseForm.handleChange}
+          error={purchaseForm.errors.productId}
+          required
+          options={productOptions}
+          placeholder="Select product"
+        />
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormInput
+            label="Quantity"
+            name="quantity"
+            type="number"
+            value={purchaseForm.values.quantity || ''}
+            onChange={purchaseForm.handleChange}
+            error={purchaseForm.errors.quantity}
+            required
+            min="1"
+            placeholder="0"
+          />
+          
+          <FormInput
+            label="Unit Cost (Ksh)"
+            name="unitCost"
+            type="number"
+            value={purchaseForm.values.unitCost || ''}
+            onChange={purchaseForm.handleChange}
+            error={purchaseForm.errors.unitCost}
+            required
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+          />
+        </div>
+        
+        <FormInput
+          label="Supplier"
+          name="supplier"
+          value={purchaseForm.values.supplier || ''}
+          onChange={purchaseForm.handleChange}
+          error={purchaseForm.errors.supplier}
+          required
+          placeholder="Supplier name"
+        />
+        
+        <FormInput
+          label="Purchase Date"
+          name="purchaseDate"
+          type="date"
+          value={purchaseForm.values.purchaseDate || ''}
+          onChange={purchaseForm.handleChange}
+          error={purchaseForm.errors.purchaseDate}
+          required
+        />
+        
+        <FormTextarea
+          label="Description"
+          name="description"
+          value={purchaseForm.values.description || ''}
+          onChange={purchaseForm.handleChange}
+          error={purchaseForm.errors.description}
+          placeholder="Additional details about the purchase..."
+          rows={3}
+        />
+      </FormModal>
+
+      {/* Repair Form Modal */}
+      <FormModal
+        isOpen={showAddRepair}
+        onClose={handleCloseRepairModal}
+        title={editingRepair ? 'Edit Repair' : 'Record New Repair'}
+        onSubmit={repairForm.handleSubmit}
+        loading={repairForm.isSubmitting}
+      >
+        <FormSelect
+          label="Product"
+          name="productId"
+          value={repairForm.values.productId || ''}
+          onChange={repairForm.handleChange}
+          error={repairForm.errors.productId}
+          required
+          options={productOptions}
+          placeholder="Select product"
+        />
+        
+        <FormTextarea
+          label="Description"
+          name="description"
+          value={repairForm.values.description || ''}
+          onChange={repairForm.handleChange}
+          error={repairForm.errors.description}
+          required
+          placeholder="Describe the repair work needed..."
+          rows={3}
+        />
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormInput
+            label="Repair Cost (Ksh)"
+            name="cost"
+            type="number"
+            value={repairForm.values.cost || ''}
+            onChange={repairForm.handleChange}
+            error={repairForm.errors.cost}
+            required
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+          />
+          
+          <FormInput
+            label="Repair Date"
+            name="repairDate"
+            type="date"
+            value={repairForm.values.repairDate || ''}
+            onChange={repairForm.handleChange}
+            error={repairForm.errors.repairDate}
+            required
+          />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormSelect
+            label="Status"
+            name="status"
+            value={repairForm.values.status || 'Pending'}
+            onChange={repairForm.handleChange}
+            error={repairForm.errors.status}
+            required
+            options={repairStatusOptions}
+          />
+          
+          <FormInput
+            label="Technician"
+            name="technician"
+            value={repairForm.values.technician || ''}
+            onChange={repairForm.handleChange}
+            error={repairForm.errors.technician}
+            placeholder="Technician name"
+          />
+        </div>
+      </FormModal>
     </div>
   );
 };

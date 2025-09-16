@@ -2,6 +2,8 @@ const asyncHandler = require('../middleware/asyncHandler');
 const Purchase = require('../models/Purchase');
 const Repair = require('../models/Repair');
 const Product = require('../models/Product');
+const TaskCompletion = require('../models/TaskCompletion');
+const LunchAllowance = require('../models/LunchAllowance');
 
 // @desc    Record a new purchase
 // @route   POST /api/transactions/purchases
@@ -207,6 +209,24 @@ const getTransactionSummary = asyncHandler(async (req, res) => {
   const completedRepairs = repairs.filter(repair => repair.status === 'Completed').length;
   const pendingRepairs = repairs.filter(repair => repair.status === 'Pending').length;
   
+  // Get labor costs summary
+  const taskCompletions = await TaskCompletion.find({
+    completedDate: dateFilter,
+    status: 'verified'
+  }).populate('taskRate', 'taskName ratePerUnit unit');
+  
+  const totalLaborCost = taskCompletions.reduce((sum, task) => sum + task.totalPayment, 0);
+  const totalTasks = taskCompletions.length;
+  
+  // Get lunch allowances summary
+  const lunchAllowances = await LunchAllowance.find({
+    date: dateFilter,
+    status: 'Provided'
+  });
+  
+  const totalLunchCost = lunchAllowances.reduce((sum, allowance) => sum + allowance.amount, 0);
+  const totalLunchAllowances = lunchAllowances.length;
+  
   res.json({
     success: true,
     data: {
@@ -225,10 +245,95 @@ const getTransactionSummary = asyncHandler(async (req, res) => {
         completed: completedRepairs,
         pending: pendingRepairs
       },
+      labor: {
+        count: totalTasks,
+        totalCost: totalLaborCost,
+        averageCostPerTask: totalTasks > 0 ? totalLaborCost / totalTasks : 0
+      },
+      lunchAllowances: {
+        count: totalLunchAllowances,
+        totalCost: totalLunchCost,
+        averageCostPerAllowance: totalLunchAllowances > 0 ? totalLunchCost / totalLunchAllowances : 0
+      },
       summary: {
-        totalExpenses: totalPurchaseCost + totalRepairCost
+        totalExpenses: totalPurchaseCost + totalRepairCost + totalLaborCost + totalLunchCost,
+        breakdown: {
+          purchases: totalPurchaseCost,
+          repairs: totalRepairCost,
+          labor: totalLaborCost,
+          lunchAllowances: totalLunchCost
+        }
       }
     }
+  });
+});
+
+// @desc    Get labor costs
+// @route   GET /api/transactions/labor
+// @access  Private
+const getLaborCosts = asyncHandler(async (req, res) => {
+  const { startDate, endDate, taskType, status = 'verified' } = req.query;
+  
+  let query = { status };
+  
+  if (startDate && endDate) {
+    query.completedDate = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate)
+    };
+  }
+  
+  if (taskType) {
+    // Find task rates with matching task type
+    const taskRates = await require('../models/TaskRate').find({
+      taskType: { $regex: taskType, $options: 'i' }
+    });
+    if (taskRates.length > 0) {
+      query.taskRate = { $in: taskRates.map(tr => tr._id) };
+    }
+  }
+
+  const laborCosts = await TaskCompletion.find(query)
+    .populate('taskRate', 'taskName taskType ratePerUnit unit')
+    .populate('order', 'orderNumber clientName')
+    .populate('workersPresent', 'name')
+    .sort({ completedDate: -1 });
+  
+  res.json({
+    success: true,
+    count: laborCosts.length,
+    data: laborCosts
+  });
+});
+
+// @desc    Get lunch allowance costs
+// @route   GET /api/transactions/lunch-allowances
+// @access  Private
+const getLunchAllowanceCosts = asyncHandler(async (req, res) => {
+  const { startDate, endDate, status = 'Provided' } = req.query;
+  
+  let dateFilter = {};
+  if (startDate && endDate) {
+    dateFilter = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate)
+    };
+  }
+  
+  const filter = {
+    ...(Object.keys(dateFilter).length && { date: dateFilter }),
+    status
+  };
+  
+  const lunchAllowances = await LunchAllowance.find(filter)
+    .populate('workerId', 'name phone')
+    .populate('attendanceId', 'hoursWorked taskDescription')
+    .sort({ date: -1 });
+  
+  res.json({
+    success: true,
+    count: lunchAllowances.length,
+    data: lunchAllowances
   });
 });
 
@@ -238,5 +343,7 @@ module.exports = {
   recordRepair,
   getRepairs,
   updateRepair,
-  getTransactionSummary
+  getTransactionSummary,
+  getLaborCosts,
+  getLunchAllowanceCosts
 }; 

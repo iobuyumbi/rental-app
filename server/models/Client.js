@@ -33,4 +33,26 @@ const clientSchema = new mongoose.Schema({
   timestamps: true
 });
 
+exports.getClients = async (req, res) => {
+  try {
+    const clients = await Client.find().sort({ name: 1 });
+    res.json(clients);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.createClient = async (req, res) => {
+  try {
+    const client = new Client(req.body);
+    await client.save();
+    res.status(201).json(client);
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+    res.status(400).json({ message: err.message });
+  }
+};
+
 module.exports = mongoose.model('Client', clientSchema); 

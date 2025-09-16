@@ -1,6 +1,6 @@
 # Rental Management System
 
-A comprehensive rental management application built with Express.js backend and React frontend, designed for managing rental operations, inventory, orders, casual workers, and financial transactions.
+A comprehensive rental management application built with Express.js backend and React frontend, designed for managing rental operations, inventory, orders, workers, and financial transactions.
 
 ## 🚀 Features
 
@@ -9,17 +9,21 @@ A comprehensive rental management application built with Express.js backend and 
 - **Inventory Management**: Product categories, stock tracking, condition monitoring
 - **Order Management**: Complete order lifecycle from creation to return
 - **Client Management**: Customer information and order history
-- **Casual Worker Management**: Attendance tracking and remuneration calculation
-- **Transaction Management**: Purchase and repair tracking
-- **Reporting System**: Invoice generation, receipts, and analytics
-- **Violation Tracking**: Overdue returns and damage penalties
+- **Worker Management**: Worker attendance, task tracking, and payment calculation
+- **Lunch Allowance**: Automated lunch allowance tracking for workers
+- **Transaction Management**: Purchase and repair tracking with financial reporting
+- **Violation System**: Track and manage rental violations and penalties
+- **Task-based Payments**: Configurable rates for different worker tasks
 
 ### Frontend (React + Vite + Shadcn UI)
 - **Modern UI**: Beautiful, responsive interface using Shadcn UI components
 - **Authentication**: Secure login with role-based navigation
 - **Dashboard**: Overview statistics and quick actions
-- **Inventory Management**: Full CRUD operations for products
-- **Real-time Updates**: Live data synchronization
+- **Inventory Management**: Full CRUD operations for products and categories
+- **Order Processing**: Create and manage rental orders with multiple items
+- **Worker Management**: Track worker attendance and task completion
+- **Financial Tracking**: Monitor transactions, purchases, and repairs
+- **Violation Management**: View and resolve rental violations
 - **Mobile Responsive**: Works on all device sizes
 
 ## 🛠️ Tech Stack
@@ -32,6 +36,8 @@ A comprehensive rental management application built with Express.js backend and 
 - **JWT** - Authentication
 - **bcryptjs** - Password hashing
 - **CORS** - Cross-origin resource sharing
+- **Winston** - Logging
+- **Helmet** - Security headers
 
 ### Frontend
 - **React 19** - UI framework
@@ -40,6 +46,9 @@ A comprehensive rental management application built with Express.js backend and 
 - **Tailwind CSS** - Styling
 - **React Router** - Navigation
 - **Axios** - HTTP client
+- **React Hook Form** - Form handling
+- **Zod** - Form validation
+- **Date-fns** - Date manipulation
 - **Lucide React** - Icons
 
 ## 📦 Installation
@@ -48,6 +57,10 @@ A comprehensive rental management application built with Express.js backend and 
 - Node.js (v18 or higher)
 - MongoDB (local or cloud)
 - pnpm (recommended) or npm
+
+### Environment Setup
+1. Create `.env` files in both `client` and `server` directories
+2. Configure required environment variables (see `.env.example` in each directory)
 
 ### Backend Setup
 

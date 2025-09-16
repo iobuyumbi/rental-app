@@ -23,14 +23,18 @@ import {
   User,
   Menu,
   X,
+  ClipboardList,
+  AlertTriangle,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Inventory", href: "/inventory", icon: Package },
   { name: "Orders", href: "/orders", icon: ShoppingCart },
-  { name: "Casual Workers", href: "/casuals", icon: Users },
+  { name: "Workers", href: "/workers", icon: Users },
+  { name: "Task Management", href: "/task-management", icon: ClipboardList },
   { name: "Transactions", href: "/transactions", icon: Wrench },
+  { name: "Violations", href: "/violations", icon: AlertTriangle },
   { name: "Reports", href: "/reports", icon: FileText },
 ];
 

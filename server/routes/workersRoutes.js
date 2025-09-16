@@ -7,7 +7,7 @@ const {
   getAttendance,
   calculateRemuneration,
   getRemunerationSummary
-} = require('../controllers/casualController');
+} = require('../controllers/workerController');
 const { protect, adminOrAssistant } = require('../middleware/auth');
 
 const router = express.Router();

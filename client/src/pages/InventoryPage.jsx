@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { 
   Package, 
   Plus, 
@@ -12,160 +12,152 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { inventoryAPI } from '../services/api';
-import { toast } from 'sonner';
 import DataTable from '../components/common/DataTable';
-import SearchFilters from '../components/common/SearchFilters';
-import FormDialog from '../components/common/FormDialog';
+import FormModal, { FormInput, FormSelect, FormTextarea } from '../components/common/FormModal';
+import useDataManager from '../hooks/useDataManager';
+import useFormManager from '../hooks/useFormManager';
 
 const InventoryPage = () => {
-  const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedCondition, setSelectedCondition] = useState('');
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
-  
-  // Form states
-  const [newProduct, setNewProduct] = useState({
-    name: '',
-    category: '',
-    type: '',
-    rentalPrice: '',
-    purchasePrice: '',
-    quantityInStock: '',
-    condition: 'Good',
-    description: '',
-    imageUrl: ''
-  });
-  
-  const [newCategory, setNewCategory] = useState({
-    name: '',
-    description: ''
+
+  // Use data manager hooks for products and categories
+  const {
+    data: products,
+    loading: productsLoading,
+    createItem: createProduct,
+    updateItem: updateProduct,
+    deleteItem: deleteProduct,
+    refresh: refreshProducts
+  } = useDataManager({
+    fetchFn: inventoryAPI.products.get,
+    createFn: inventoryAPI.products.create,
+    updateFn: inventoryAPI.products.update,
+    deleteFn: inventoryAPI.products.delete,
+    entityName: 'product'
   });
 
-  // Load data on component mount
-  useEffect(() => {
-    loadData();
-  }, []);
+  const {
+    data: categories,
+    loading: categoriesLoading,
+    createItem: createCategory,
+    updateItem: updateCategory,
+    deleteItem: deleteCategory
+  } = useDataManager({
+    fetchFn: inventoryAPI.categories.get,
+    createFn: inventoryAPI.categories.create,
+    updateFn: inventoryAPI.categories.update,
+    deleteFn: inventoryAPI.categories.delete,
+    entityName: 'category'
+  });
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [productsResponse, categoriesResponse] = await Promise.all([
-        inventoryAPI.products.get(),
-        inventoryAPI.categories.get()
-      ]);
-      
-      setProducts(Array.isArray(productsResponse) ? productsResponse : []);
-      setCategories(Array.isArray(categoriesResponse) ? categoriesResponse : []);
-    } catch (error) {
-      console.error('Error loading inventory data:', error);
-      toast.error('Failed to load inventory data');
-      setProducts([]);
-      setCategories([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loading = productsLoading || categoriesLoading;
 
   // Filter products based on search criteria
   const filteredProducts = products.filter(product => {
-    const matchesSearch = !searchTerm || 
-      product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.type?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = !selectedCategory || selectedCategory === 'all' || product.category?._id === selectedCategory;
+    const matchesCondition = !selectedCondition || selectedCondition === 'all' || product.condition === selectedCondition;
     
-    const matchesCategory = !selectedCategory || selectedCategory === '__all__' || product.category?._id === selectedCategory;
-    const matchesCondition = !selectedCondition || selectedCondition === '__all__' || product.condition === selectedCondition;
-    
-    return matchesSearch && matchesCategory && matchesCondition;
+    return matchesCategory && matchesCondition;
   });
 
-  // Reset forms when dialogs close
-  useEffect(() => {
-    if (!showAddProduct) {
-      setEditingProduct(null);
-      setNewProduct({
-        name: '',
-        category: '',
-        type: '',
-        rentalPrice: '',
-        purchasePrice: '',
-        quantityInStock: '',
-        condition: 'Good',
-        description: '',
-        imageUrl: ''
-      });
-    }
-  }, [showAddProduct]);
+  // Form validation rules
+  const productValidationRules = {
+    name: { required: true, label: 'Product Name', minLength: 2 },
+    category: { required: true, label: 'Category' },
+    rentalPrice: { required: true, number: true, min: 0, label: 'Rental Price' },
+    purchasePrice: { number: true, min: 0, label: 'Purchase Price' },
+    quantityInStock: { required: true, number: true, min: 0, label: 'Quantity' },
+    condition: { required: true, label: 'Condition' }
+  };
 
-  useEffect(() => {
-    if (!showAddCategory) {
-      setEditingCategory(null);
-      setNewCategory({
-        name: '',
-        description: ''
-      });
-    }
-  }, [showAddCategory]);
+  const categoryValidationRules = {
+    name: { required: true, label: 'Category Name', minLength: 2 },
+    type: { required: true, label: 'Type' },
+    rentalPriceMultiplier: { number: true, min: 0, label: 'Price Multiplier' },
+    maintenanceIntervalDays: { number: true, min: 0, label: 'Maintenance Interval' }
+  };
 
-  // Product form handlers
-  const handleProductSubmit = async (e) => {
-    e.preventDefault();
-    try {
+  // Form managers
+  const productForm = useFormManager(
+    {
+      name: '',
+      category: '',
+      rentalPrice: '',
+      purchasePrice: '',
+      quantityInStock: '',
+      condition: 'Good',
+      description: '',
+      imageUrl: ''
+    },
+    productValidationRules,
+    async (values) => {
       const productData = {
-        ...newProduct,
-        rentalPrice: parseFloat(newProduct.rentalPrice) || 0,
-        purchasePrice: parseFloat(newProduct.purchasePrice) || 0,
-        quantityInStock: parseInt(newProduct.quantityInStock) || 0,
+        ...values,
+        rentalPrice: parseFloat(values.rentalPrice) || 0,
+        purchasePrice: parseFloat(values.purchasePrice) || 0,
+        quantityInStock: parseInt(values.quantityInStock) || 0,
       };
 
       if (editingProduct) {
-        await inventoryAPI.products.update(editingProduct._id, productData);
-        toast.success('Product updated successfully');
+        await updateProduct(editingProduct._id, productData);
       } else {
-        await inventoryAPI.products.create(productData);
-        toast.success('Product added successfully');
+        await createProduct(productData);
       }
-
+      
       setShowAddProduct(false);
-      loadData();
-    } catch (error) {
-      console.error('Error saving product:', error);
-      toast.error('Failed to save product');
+      setEditingProduct(null);
+      productForm.reset();
     }
+  );
+
+  const categoryForm = useFormManager(
+    {
+      name: '',
+      type: 'OTHER',
+      description: '',
+      isActive: true,
+      rentalPriceMultiplier: 1.0,
+      requiresMaintenance: false,
+      maintenanceIntervalDays: 0,
+      imageUrl: ''
+    },
+    categoryValidationRules,
+    async (values) => {
+      if (editingCategory) {
+        await updateCategory(editingCategory._id, values);
+      } else {
+        await createCategory(values);
+      }
+      
+      setShowAddCategory(false);
+      setEditingCategory(null);
+      categoryForm.reset();
+    }
+  );
+
+  // Event handlers
+  const handleAddProduct = () => {
+    setEditingProduct(null);
+    productForm.reset();
+    setShowAddProduct(true);
   };
 
-  // Category form handlers
-  const handleCategorySubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editingCategory) {
-        await inventoryAPI.categories.update(editingCategory._id, newCategory);
-        toast.success('Category updated successfully');
-      } else {
-        await inventoryAPI.categories.create(newCategory);
-        toast.success('Category added successfully');
-      }
-
-      setShowAddCategory(false);
-      loadData();
-    } catch (error) {
-      console.error('Error saving category:', error);
-      toast.error('Failed to save category');
-    }
+  const handleAddCategory = () => {
+    setEditingCategory(null);
+    categoryForm.reset();
+    setShowAddCategory(true);
   };
 
   const handleEditProduct = (product) => {
     setEditingProduct(product);
-    setNewProduct({
+    productForm.reset({
       name: product.name || '',
       category: product.category?._id || '',
-      type: product.type || '',
       rentalPrice: product.rentalPrice?.toString() || '',
       purchasePrice: product.purchasePrice?.toString() || '',
       quantityInStock: product.quantityInStock?.toString() || '',
@@ -178,49 +170,37 @@ const InventoryPage = () => {
 
   const handleEditCategory = (category) => {
     setEditingCategory(category);
-    setNewCategory({
+    categoryForm.reset({
       name: category.name || '',
-      description: category.description || ''
+      type: category.type || 'OTHER',
+      description: category.description || '',
+      isActive: category.isActive !== undefined ? category.isActive : true,
+      rentalPriceMultiplier: category.rentalPriceMultiplier || 1.0,
+      requiresMaintenance: category.requiresMaintenance || false,
+      maintenanceIntervalDays: category.maintenanceIntervalDays || 0,
+      imageUrl: category.imageUrl || ''
     });
     setShowAddCategory(true);
   };
 
-  const handleDeleteProduct = async (id) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      try {
-        await inventoryAPI.products.delete(id);
-        toast.success('Product deleted successfully');
-        loadData();
-      } catch (error) {
-        console.error('Error deleting product:', error);
-        toast.error('Failed to delete product');
-      }
+  const handleDeleteProduct = async (product) => {
+    if (window.confirm(`Are you sure you want to delete "${product.name}"?`)) {
+      await deleteProduct(product._id);
     }
   };
 
-  const handleDeleteCategory = async (id) => {
-    if (window.confirm('Are you sure you want to delete this category?')) {
-      try {
-        await inventoryAPI.categories.delete(id);
-        toast.success('Category deleted successfully');
-        loadData();
-      } catch (error) {
-        console.error('Error deleting category:', error);
-        toast.error('Failed to delete category');
-      }
+  const handleDeleteCategory = async (category) => {
+    if (window.confirm(`Are you sure you want to delete "${category.name}"?`)) {
+      await deleteCategory(category._id);
     }
   };
 
-  const getConditionColor = (condition) => {
+  const getConditionBadgeVariant = (condition) => {
     switch (condition) {
-      case 'Good':
-        return 'bg-green-100 text-green-800';
-      case 'Fair':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Needs Repair':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'Good': return 'default';
+      case 'Fair': return 'secondary';
+      case 'Needs Repair': return 'destructive';
+      default: return 'outline';
     }
   };
 
@@ -237,118 +217,97 @@ const InventoryPage = () => {
 
   // Define product table columns
   const productColumns = [
-    { key: 'name', label: 'Product' },
-    { key: 'category', label: 'Category' },
-    { key: 'type', label: 'Type' },
-    { key: 'quantityInStock', label: 'Stock' },
-    { key: 'quantityRented', label: 'Rented' },
-    { key: 'rentalPrice', label: 'Rental Price' },
-    { key: 'condition', label: 'Condition' }
+    {
+      header: 'Product',
+      accessor: 'name',
+      className: 'min-w-[200px]'
+    },
+    {
+      header: 'Category',
+      accessor: 'category',
+      render: (product) => product.category?.name || 'No Category'
+    },
+    {
+      header: 'Stock',
+      accessor: 'quantityInStock',
+      render: (product) => {
+        const stock = product.quantityInStock || 0;
+        const rented = product.quantityRented || 0;
+        const available = stock - rented;
+        return (
+          <div className="text-sm">
+            <div>{available} available</div>
+            <div className="text-gray-500">{stock} total</div>
+          </div>
+        );
+      }
+    },
+    {
+      header: 'Rental Price',
+      accessor: 'rentalPrice',
+      type: 'currency'
+    },
+    {
+      header: 'Condition',
+      accessor: 'condition',
+      type: 'badge',
+      getBadgeVariant: getConditionBadgeVariant
+    }
   ];
 
   // Define category table columns
   const categoryColumns = [
-    { key: 'name', label: 'Category Name' },
-    { key: 'description', label: 'Description' },
-    { key: 'productCount', label: 'Products' }
-  ];
-
-  // Product form fields
-  const productFields = [
-    { key: 'name', label: 'Product Name', type: 'text', required: true, placeholder: 'Enter product name' },
-    { 
-      key: 'category', 
-      label: 'Category', 
-      type: 'select', 
-      required: true,
-      options: categories.map(cat => ({ value: cat._id, label: cat.name })),
-      placeholder: 'Select category'
-    },
-    { key: 'type', label: 'Type', type: 'text', required: true, placeholder: 'e.g., Chair, Table, Equipment' },
-    { key: 'rentalPrice', label: 'Rental Price (Ksh)', type: 'number', required: true, placeholder: '0.00' },
-    { key: 'purchasePrice', label: 'Purchase Price (Ksh)', type: 'number', placeholder: '0.00' },
-    { key: 'quantityInStock', label: 'Quantity in Stock', type: 'number', required: true, placeholder: '0' },
-    { 
-      key: 'condition', 
-      label: 'Condition', 
-      type: 'select', 
-      required: true,
-      options: [
-        { value: 'Good', label: 'Good' },
-        { value: 'Fair', label: 'Fair' },
-        { value: 'Needs Repair', label: 'Needs Repair' }
-      ]
-    },
-    { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Product description...' },
-    { key: 'imageUrl', label: 'Image URL', type: 'url', placeholder: 'https://...' }
-  ];
-
-  // Category form fields
-  const categoryFields = [
-    { key: 'name', label: 'Category Name', type: 'text', required: true, placeholder: 'Enter category name' },
-    { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Category description...' }
-  ];
-
-  // Search filters configuration
-  const searchFilters = [
     {
-      key: 'category',
-      label: 'Category',
-      value: selectedCategory,
-      onChange: setSelectedCategory,
-      placeholder: 'All categories',
-      allLabel: 'All categories',
-      options: categories.map(cat => ({ value: cat._id, label: cat.name }))
+      header: 'Category Name',
+      accessor: 'name'
     },
     {
-      key: 'condition',
-      label: 'Condition',
-      value: selectedCondition,
-      onChange: setSelectedCondition,
-      placeholder: 'All conditions',
-      allLabel: 'All conditions',
-      options: [
-        { value: 'Good', label: 'Good' },
-        { value: 'Fair', label: 'Fair' },
-        { value: 'Needs Repair', label: 'Needs Repair' }
-      ]
+      header: 'Description',
+      accessor: 'description',
+      render: (category) => category.description || 'No description'
+    },
+    {
+      header: 'Products',
+      accessor: 'productCount',
+      render: (category) => {
+        const count = products.filter(p => p.category?._id === category._id).length;
+        return `${count} products`;
+      }
+    },
+    {
+      header: 'Status',
+      accessor: 'isActive',
+      type: 'badge',
+      getBadgeVariant: (isActive) => isActive ? 'default' : 'secondary',
+      render: (category) => category.isActive ? 'Active' : 'Inactive'
     }
   ];
 
-  // Custom cell renderer for products
-  const renderProductCell = (product, column) => {
-    switch (column.key) {
-      case 'name':
-        return (
-          <div className="flex items-center space-x-2">
-            <Package className="h-4 w-4 text-gray-400" />
-            <span className="font-medium">{product.name}</span>
-          </div>
-        );
-      case 'category':
-        return product.category?.name || 'N/A';
-      case 'rentalPrice':
-        return `Ksh ${product.rentalPrice?.toLocaleString() || '0'}`;
-      case 'condition':
-        return (
-          <Badge className={getConditionColor(product.condition)}>
-            {product.condition}
-          </Badge>
-        );
-      default:
-        return product[column.key] || 'N/A';
-    }
-  };
+  // Category type options
+  const categoryTypeOptions = [
+    { value: 'TENT', label: 'Tent' },
+    { value: 'CHAIR', label: 'Chair' },
+    { value: 'TABLE', label: 'Table' },
+    { value: 'UTENSIL', label: 'Utensil' },
+    { value: 'EQUIPMENT', label: 'Equipment' },
+    { value: 'FURNITURE', label: 'Furniture' },
+    { value: 'LIGHTING', label: 'Lighting' },
+    { value: 'SOUND', label: 'Sound' },
+    { value: 'OTHER', label: 'Other' }
+  ];
 
-  // Custom cell renderer for categories
-  const renderCategoryCell = (category, column) => {
-    switch (column.key) {
-      case 'productCount':
-        return products.filter(p => p.category?._id === category._id).length;
-      default:
-        return category[column.key] || 'N/A';
-    }
-  };
+  const conditionOptions = [
+    { value: 'Good', label: 'Good' },
+    { value: 'Fair', label: 'Fair' },
+    { value: 'Needs Repair', label: 'Needs Repair' }
+  ];
+
+  const categoryOptions = categories.length > 0 
+    ? categories
+        .filter(cat => cat.isActive !== false)
+        .map(cat => ({ value: cat._id, label: `${cat.name} (${cat.type})` }))
+    : [{ value: '', label: 'No categories available - Create one first' }];
+
 
   return (
     <div className="space-y-6">
@@ -381,66 +340,74 @@ const InventoryPage = () => {
 
         {/* Products Tab */}
         <TabsContent value="products" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Product Inventory</CardTitle>
-                  <CardDescription>Manage your rental products and stock levels</CardDescription>
-                </div>
-                <Button onClick={() => setShowAddProduct(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Product
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <SearchFilters
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                filters={searchFilters}
-              />
-              
-              <DataTable
-                columns={productColumns}
-                data={filteredProducts}
-                onEdit={handleEditProduct}
-                onDelete={handleDeleteProduct}
-                renderCell={renderProductCell}
-                emptyMessage="No products found"
-                emptyIcon={Package}
-              />
-            </CardContent>
-          </Card>
+          {/* Filters */}
+          <div className="flex items-center space-x-4">
+            <div className="w-48">
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category._id} value={category._id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-48">
+              <Select value={selectedCondition} onValueChange={setSelectedCondition}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All conditions" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Conditions</SelectItem>
+                  {conditionOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DataTable
+            title="Product Inventory"
+            description="Manage your rental products and stock levels"
+            columns={productColumns}
+            data={filteredProducts}
+            onAdd={handleAddProduct}
+            addLabel="Add Product"
+            onEdit={handleEditProduct}
+            onDelete={handleDeleteProduct}
+            searchable={true}
+            searchPlaceholder="Search products by name, description..."
+            loading={loading}
+            emptyMessage="No products found. Add your first product to get started."
+            emptyIcon={Package}
+          />
         </TabsContent>
 
         {/* Categories Tab */}
         <TabsContent value="categories" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Product Categories</CardTitle>
-                  <CardDescription>Organize your products into categories</CardDescription>
-                </div>
-                <Button onClick={() => setShowAddCategory(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Category
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                columns={categoryColumns}
-                data={categories}
-                onEdit={handleEditCategory}
-                onDelete={handleDeleteCategory}
-                renderCell={renderCategoryCell}
-                emptyMessage="No categories found"
-                emptyIcon={BarChart3}
-              />
-            </CardContent>
-          </Card>
+          <DataTable
+            title="Product Categories"
+            description="Organize your products into categories"
+            columns={categoryColumns}
+            data={categories}
+            onAdd={handleAddCategory}
+            addLabel="Add Category"
+            onEdit={handleEditCategory}
+            onDelete={handleDeleteCategory}
+            searchable={true}
+            searchPlaceholder="Search categories..."
+            loading={loading}
+            emptyMessage="No categories found. Create your first category to organize products."
+            emptyIcon={BarChart3}
+          />
         </TabsContent>
 
         {/* Analytics Tab */}
@@ -507,33 +474,187 @@ const InventoryPage = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Product Form Dialog */}
-      <FormDialog
+      {/* Product Form Modal */}
+      <FormModal
         isOpen={showAddProduct}
-        onOpenChange={setShowAddProduct}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowAddProduct(false);
+            setEditingProduct(null);
+            productForm.reset();
+          }
+        }}
         title={editingProduct ? 'Edit Product' : 'Add New Product'}
-        description={editingProduct ? 'Update product information' : 'Add a new product to your inventory'}
-        formData={newProduct}
-        onFormChange={setNewProduct}
-        onSubmit={handleProductSubmit}
-        fields={productFields}
-        submitLabel="Product"
-        isEditing={!!editingProduct}
-      />
+        onSubmit={productForm.handleSubmit}
+        loading={productForm.isSubmitting}
+      >
+        <FormInput
+          label="Product Name"
+          name="name"
+          value={productForm.values.name || ''}
+          onChange={productForm.handleChange}
+          error={productForm.errors.name}
+          required
+          placeholder="Enter product name"
+        />
+        
+        <FormSelect
+          label="Category"
+          name="category"
+          value={productForm.values.category || ''}
+          onChange={productForm.handleChange}
+          error={productForm.errors.category}
+          required
+          options={categoryOptions}
+          placeholder="Select category"
+        />
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormInput
+            label="Rental Price (KES)"
+            name="rentalPrice"
+            type="number"
+            value={productForm.values.rentalPrice || ''}
+            onChange={productForm.handleChange}
+            error={productForm.errors.rentalPrice}
+            required
+            placeholder="0.00"
+          />
+          
+          <FormInput
+            label="Purchase Price (KES)"
+            name="purchasePrice"
+            type="number"
+            value={productForm.values.purchasePrice || ''}
+            onChange={productForm.handleChange}
+            error={productForm.errors.purchasePrice}
+            placeholder="0.00"
+          />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormInput
+            label="Quantity in Stock"
+            name="quantityInStock"
+            type="number"
+            value={productForm.values.quantityInStock || ''}
+            onChange={productForm.handleChange}
+            error={productForm.errors.quantityInStock}
+            required
+            placeholder="0"
+          />
+          
+          <FormSelect
+            label="Condition"
+            name="condition"
+            value={productForm.values.condition || ''}
+            onChange={productForm.handleChange}
+            error={productForm.errors.condition}
+            required
+            options={conditionOptions}
+            placeholder="Select condition"
+          />
+        </div>
+        
+        <FormTextarea
+          label="Description"
+          name="description"
+          value={productForm.values.description || ''}
+          onChange={productForm.handleChange}
+          error={productForm.errors.description}
+          placeholder="Product description..."
+        />
+        
+        <FormInput
+          label="Image URL"
+          name="imageUrl"
+          type="url"
+          value={productForm.values.imageUrl || ''}
+          onChange={productForm.handleChange}
+          error={productForm.errors.imageUrl}
+          placeholder="https://..."
+        />
+      </FormModal>
 
-      {/* Category Form Dialog */}
-      <FormDialog
+      {/* Category Form Modal */}
+      <FormModal
         isOpen={showAddCategory}
-        onOpenChange={setShowAddCategory}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowAddCategory(false);
+            setEditingCategory(null);
+            categoryForm.reset();
+          }
+        }}
         title={editingCategory ? 'Edit Category' : 'Add New Category'}
-        description={editingCategory ? 'Update category information' : 'Add a new category to organize your products'}
-        formData={newCategory}
-        onFormChange={setNewCategory}
-        onSubmit={handleCategorySubmit}
-        fields={categoryFields}
-        submitLabel="Category"
-        isEditing={!!editingCategory}
-      />
+        onSubmit={categoryForm.handleSubmit}
+        loading={categoryForm.isSubmitting}
+      >
+        <FormInput
+          label="Category Name"
+          name="name"
+          value={categoryForm.values.name || ''}
+          onChange={categoryForm.handleChange}
+          error={categoryForm.errors.name}
+          required
+          placeholder="Enter category name"
+        />
+        
+        <FormSelect
+          label="Category Type"
+          name="type"
+          value={categoryForm.values.type || ''}
+          onChange={categoryForm.handleChange}
+          error={categoryForm.errors.type}
+          required
+          options={categoryTypeOptions}
+          placeholder="Select category type"
+        />
+        
+        <FormTextarea
+          label="Description"
+          name="description"
+          value={categoryForm.values.description || ''}
+          onChange={categoryForm.handleChange}
+          error={categoryForm.errors.description}
+          placeholder="Category description..."
+        />
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormInput
+            label="Rental Price Multiplier"
+            name="rentalPriceMultiplier"
+            type="number"
+            step="0.1"
+            min="0.1"
+            value={categoryForm.values.rentalPriceMultiplier || ''}
+            onChange={categoryForm.handleChange}
+            error={categoryForm.errors.rentalPriceMultiplier}
+            placeholder="1.0"
+          />
+          
+          <FormInput
+            label="Maintenance Interval (Days)"
+            name="maintenanceIntervalDays"
+            type="number"
+            min="0"
+            value={categoryForm.values.maintenanceIntervalDays || ''}
+            onChange={categoryForm.handleChange}
+            error={categoryForm.errors.maintenanceIntervalDays}
+            placeholder="0"
+          />
+        </div>
+        
+        <FormInput
+          label="Image URL"
+          name="imageUrl"
+          type="url"
+          value={categoryForm.values.imageUrl || ''}
+          onChange={categoryForm.handleChange}
+          error={categoryForm.errors.imageUrl}
+          placeholder="https://..."
+        />
+      </FormModal>
     </div>
   );
 };

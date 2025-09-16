@@ -3,7 +3,7 @@ const {
   generateInvoice,
   generateReceipt,
   getDiscountApprovals,
-  getCasualRemunerationSummary,
+  getWorkerRemunerationSummary,
   getInventoryStatus,
   getOverdueReturns
 } = require('../controllers/reportController');
@@ -21,7 +21,7 @@ router.get('/receipts/:orderId', generateReceipt);
 
 // Reports
 router.get('/discount-approvals', getDiscountApprovals);
-router.get('/casual-remuneration-summary', getCasualRemunerationSummary);
+router.get('/worker-remuneration-summary', getWorkerRemunerationSummary);
 router.get('/inventory-status', getInventoryStatus);
 router.get('/overdue-returns', getOverdueReturns);
 

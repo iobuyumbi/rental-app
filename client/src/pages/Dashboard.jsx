@@ -13,7 +13,7 @@ import {
   Plus,
   Eye
 } from 'lucide-react';
-import { inventoryAPI, ordersAPI, casualsAPI, reportsAPI } from '../services/api';
+import { inventoryAPI, ordersAPI, workersAPI, reportsAPI } from '../services/api';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -59,7 +59,7 @@ const Dashboard = () => {
         }),
         
         // Load workers
-        casualsAPI.workers.get().catch(err => {
+        workersAPI.workers.get().catch(err => {
           console.warn('Failed to load workers:', err);
           return { data: [] };
         }),
@@ -131,7 +131,7 @@ const Dashboard = () => {
       title: 'Record Attendance',
       description: 'Record casual worker attendance',
       icon: Users,
-      href: '/casuals',
+      href: '/workers',
       color: 'bg-purple-500'
     },
     {

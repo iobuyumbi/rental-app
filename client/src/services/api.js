@@ -50,200 +50,97 @@ api.interceptors.request.use(
 // Response interceptor with retry logic and offline handling
 api.interceptors.response.use(
   (response) => {
-    // Cache successful GET responses for offline use
-    if (response.config.method === 'get' && response.data) {
-      const cacheKey = `api-cache:${response.config.url}`;
-      const cacheData = {
-        data: response.data,
-        timestamp: Date.now(),
-        headers: response.headers
-      };
-      localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-    }
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
     
-    // Handle offline scenario
+    // Handle offline errors
     if (error.isOffline || !navigator.onLine) {
-      // For GET requests, try to return cached data if available
-      if (originalRequest.method === 'get' && originalRequest.url) {
-        const cacheKey = `api-cache:${originalRequest.url}`;
-        const cachedData = localStorage.getItem(cacheKey);
-        if (cachedData) {
-          try {
-            const { data, timestamp, headers } = JSON.parse(cachedData);
-            // Check if cache is still valid (1 hour by default)
-            const maxAge = parseInt(originalRequest.headers['x-cache-max-age'] || '3600000', 10);
-            if (Date.now() - timestamp < maxAge) {
-              console.log(`[API] Serving from cache: ${originalRequest.url}`);
-              return {
-                ...error.response,
-                data,
-                headers: { ...headers, 'x-cached': 'true' },
-                status: 200,
-                statusText: 'OK (Cached)'
-              };
-            }
-          } catch (e) {
-            console.error('Error reading from cache:', e);
-          }
-        }
-      }
-      
-      // For other methods or when no cache is available, reject with offline error
-      const offlineError = new Error('You are currently offline. Your request will be processed when you are back online.');
-      offlineError.isOffline = true;
-      offlineError.code = 'OFFLINE';
-      return Promise.reject(offlineError);
+      console.log('Offline mode detected, request will be queued');
+      // In a real app, you might queue this request for later
+      throw new Error('You are offline. Please check your connection.');
     }
     
-    // Handle 401 Unauthorized
-    if (error.response?.status === 401) {
-      // Only redirect if not already on the login page
-      if (!window.location.pathname.includes('/login')) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+    // Handle network errors with retry logic
+    if (
+      error.code === 'NETWORK_ERROR' ||
+      error.code === 'ECONNABORTED' ||
+      (error.response && error.response.status >= 500)
+    ) {
+      if (!originalRequest._retry && originalRequest._retryCount < MAX_RETRIES) {
+        originalRequest._retry = true;
+        originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+        
+        console.log(`Retrying request (${originalRequest._retryCount}/${MAX_RETRIES})`);
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        
+        return api(originalRequest);
       }
+    }
+    
+    // Handle 401 errors (unauthorized)
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
       return Promise.reject(error);
     }
     
-    // Handle network errors and retries
-    if (
-      !originalRequest._retry && 
-      error.code !== 'ECONNABORTED' && 
-      (!error.response || error.response.status >= 500)
-    ) {
-      originalRequest._retry = originalRequest._retry || 0;
-      
-      if (originalRequest._retry < MAX_RETRIES) {
-        originalRequest._retry += 1;
-        
-        // Exponential backoff
-        const delay = RETRY_DELAY * Math.pow(2, originalRequest._retry - 1);
-        
-        return new Promise((resolve) => {
-          setTimeout(() => resolve(api(originalRequest)), delay);
-        });
-      }
-    }
-    
-    // Format error message
-    let errorMessage = 'An error occurred';
-    
-    if (error.response) {
-      // Server responded with a status code outside 2xx
-      const { data } = error.response;
-      errorMessage = data?.message || 
-                    data?.error?.message || 
-                    error.response.statusText || 
-                    'Request failed';
-      
-      // Add more context for common errors
-      if (error.response.status === 404) {
-        errorMessage = 'The requested resource was not found';
-      } else if (error.response.status >= 500) {
-        errorMessage = 'Server error. Please try again later.';
-      }
-    } else if (error.request) {
-      // Request was made but no response received
-      errorMessage = 'No response from server. Please check your connection.';
-    } else {
-      // Something happened in setting up the request
-      errorMessage = error.message || 'Request setup failed';
-    }
-    
-    // Create a new error with formatted message
-    const enhancedError = new Error(errorMessage);
-    enhancedError.status = error.response?.status;
-    enhancedError.code = error.code;
-    enhancedError.details = error.response?.data?.details;
-    
-    // Show error toast for non-cancelled requests
-    if (error.code !== 'ERR_CANCELED') {
-      toast.error(errorMessage, { 
-        position: 'top-right',
-        duration: 5000
-      });
-    }
-    
-    return Promise.reject(enhancedError);
+    return Promise.reject(error);
   }
 );
 
-// Helper function to handle API responses
+// Helper functions
 const handleResponse = (response) => {
-  if (response.status >= 200 && response.status < 300) {
-    return response.data;
-  }
-  throw new Error(response.statusText);
+  return response.data;
 };
 
-// Helper function to handle errors
 const handleError = (error) => {
-  // Don't log cancelled requests or offline errors
-  if (error.code !== 'ERR_CANCELED' && error.code !== 'OFFLINE') {
-    console.error('API Error:', error);
+  console.error('API Error:', error);
+  
+  let message = 'An error occurred';
+  
+  if (error.response) {
+    // Server responded with error status
+    message = error.response.data?.message || error.response.data?.error || `Server error: ${error.response.status}`;
+  } else if (error.request) {
+    // Request made but no response received
+    message = 'No response from server. Please check your connection.';
+  } else {
+    // Something else happened
+    message = error.message || 'Network error occurred';
   }
-  throw error;
+  
+  throw new Error(message);
 };
 
-// Helper function to create offline-aware API methods
+// Create offline-capable API endpoints
 const createOfflineAPI = (endpoint, options = {}) => {
-  const { cacheKey, ttl = 3600000 } = options; // Default TTL: 1 hour
+  const { cacheKey, maxAge = 300000, ttl = 300000 } = options;
   
   return {
-    // GET request with caching
-    get: (id = '', params = {}) => {
-      const url = id ? `${endpoint}/${id}` : endpoint;
-      return api.get(url, { 
+    get: (params = {}) => 
+      api.get(endpoint, { 
         params,
-        headers: { 'x-cache-max-age': ttl }
-      }).then(handleResponse).catch(handleError);
-    },
-    
-    // POST request with offline support
-    create: (data) => {
-      return api.post(endpoint, data, {
-        headers: { 'x-offline-key': cacheKey }
-      }).then(handleResponse).catch(handleError);
-    },
-    
-    // PUT request with offline support
-    update: (id, data) => {
-      return api.put(`${endpoint}/${id}`, data, {
-        headers: { 'x-offline-key': cacheKey }
-      }).then(handleResponse).catch(handleError);
-    },
-    
-    // DELETE request with offline support
-    delete: (id) => {
-      return api.delete(`${endpoint}/${id}`, {
-        headers: { 'x-offline-key': cacheKey }
-      }).then(handleResponse).catch(handleError);
-    },
-    
-    // Custom method with offline support
-    custom: (method, path = '', data = null) => {
-      const url = path ? `${endpoint}/${path}` : endpoint;
-      const config = {
-        method,
-        url,
-        headers: { 'x-offline-key': cacheKey }
-      };
+        headers: { 'x-cache-max-age': maxAge.toString() }
+      }).then(handleResponse).catch(handleError),
       
-      if (data) {
-        if (['get', 'head'].includes(method.toLowerCase())) {
-          config.params = data;
-        } else {
-          config.data = data;
-        }
-      }
+    create: (data) => 
+      api.post(endpoint, data).then(handleResponse).catch(handleError),
       
-      return api(config).then(handleResponse).catch(handleError);
-    }
+    update: (id, data) => 
+      api.put(`${endpoint}/${id}`, data).then(handleResponse).catch(handleError),
+      
+    delete: (id) => 
+      api.delete(`${endpoint}/${id}`).then(handleResponse).catch(handleError),
+      
+    getById: (id) => 
+      api.get(`${endpoint}/${id}`, {
+        headers: { 'x-cache-max-age': maxAge.toString() }
+      }).then(handleResponse).catch(handleError)
   };
 };
 
@@ -276,99 +173,124 @@ export const authAPI = {
 // Inventory API
 export const inventoryAPI = {
   // Categories
-  categories: createOfflineAPI('/inventory/categories', { 
-    cacheKey: 'inventory_categories',
-    ttl: 3600000 // 1 hour
-  }),
+  categories: {
+    get: () => api.get('/inventory/categories').then(response => response.data?.data || response.data).catch(handleError),
+    create: (categoryData) => api.post('/inventory/categories', categoryData).then(response => response.data?.data || response.data).catch(handleError),
+    update: (id, categoryData) => api.put(`/inventory/categories/${id}`, categoryData).then(response => response.data?.data || response.data).catch(handleError),
+    delete: (id) => api.delete(`/inventory/categories/${id}`).then(response => response.data?.data || response.data).catch(handleError)
+  },
   
   // Products
-  products: createOfflineAPI('/inventory/products', {
-    cacheKey: 'inventory_products',
-    ttl: 300000 // 5 minutes
-  }),
+  products: {
+    get: () => api.get('/inventory/products').then(response => response.data?.data || response.data).catch(handleError),
+    create: (productData) => api.post('/inventory/products', productData).then(response => response.data?.data || response.data).catch(handleError),
+    update: (id, productData) => api.put(`/inventory/products/${id}`, productData).then(response => response.data?.data || response.data).catch(handleError),
+    delete: (id) => api.delete(`/inventory/products/${id}`).then(response => response.data?.data || response.data).catch(handleError)
+  },
   
   // Available products (heavily cached)
   getAvailableProducts: () => 
     api.get('/inventory/products/available', {
       headers: { 'x-cache-max-age': '300000' } // 5 minutes
-    }).then(handleResponse).catch(handleError),
-    
-  // Search products with offline support
-  searchProducts: (query, params = {}) => {
-    const cacheKey = `search_${encodeURIComponent(query)}`;
-    return api.get('/inventory/products/search', {
-      params: { q: query, ...params },
-      headers: { 
-        'x-cache-key': cacheKey,
-        'x-cache-max-age': '300000' // 5 minutes
-      }
-    }).then(handleResponse).catch(handleError);
-  }
+    }).then(response => response.data?.data || response.data).catch(handleError)
 };
 
 // Orders API
 export const ordersAPI = {
-  getClients: () => api.get('/orders/clients'),
-  addClient: (clientData) => api.post('/orders/clients', clientData),
-  getOrders: (params) => api.get('/orders', { params }),
-  getOrder: (id) => api.get(`/orders/${id}`),
-  createOrder: (orderData) => api.post('/orders', orderData),
-  updateOrder: (id, orderData) => api.put(`/orders/${id}`, orderData),
-  deleteOrder: (id) => api.delete(`/orders/${id}`),
-  markReturned: (id) => api.put(`/orders/${id}/return`),
-  requestDiscount: (id, discountData) => api.post(`/orders/${id}/discount/request`, discountData),
-  approveDiscount: (id, approvalData) => api.put(`/orders/${id}/discount/approve`, approvalData),
-  updatePayment: (id, paymentData) => api.put(`/orders/${id}/payment`, paymentData),
-  getViolations: () => api.get('/orders/violations'),
-  resolveViolation: (id) => api.put(`/orders/violations/${id}/resolve`),
+  getAll: (params) => api.get('/orders', { params }).then(handleResponse).catch(handleError),
+  getClients: () => api.get('/clients').then(handleResponse).catch(handleError),
+  addClient: (clientData) => api.post('/clients', clientData).then(handleResponse).catch(handleError),
+  getOrders: (params) => api.get('/orders', { params }).then(handleResponse).catch(handleError),
+  getOrder: (id) => api.get(`/orders/${id}`).then(handleResponse).catch(handleError),
+  createOrder: (orderData) => api.post('/orders', orderData).then(handleResponse).catch(handleError),
+  updateOrder: (id, orderData) => api.put(`/orders/${id}`, orderData).then(handleResponse).catch(handleError),
+  deleteOrder: (id) => api.delete(`/orders/${id}`).then(handleResponse).catch(handleError),
+  markReturned: (id) => api.put(`/orders/${id}/return`).then(handleResponse).catch(handleError),
+  requestDiscount: (id, discountData) => api.post(`/orders/${id}/discount/request`, discountData).then(handleResponse).catch(handleError),
+  approveDiscount: (id, approvalData) => api.put(`/orders/${id}/discount/approve`, approvalData).then(handleResponse).catch(handleError),
+  updatePayment: (id, paymentData) => api.put(`/orders/${id}/payment`, paymentData).then(handleResponse).catch(handleError),
+  getViolations: () => api.get('/orders/violations').then(handleResponse).catch(handleError),
+  resolveViolation: (id) => api.put(`/orders/violations/${id}/resolve`).then(handleResponse).catch(handleError)
 };
 
-// Casual Workers API
-export const casualsAPI = {
+// Workers API
+export const workersAPI = {
   // Workers management
-  workers: createOfflineAPI('/casuals/workers', {
-    cacheKey: 'casual_workers',
-    ttl: 86400000 // 24 hours
-  }),
-  
-  // Attendance
-  attendance: {
-    record: (attendanceData) =>
-      api.post('/casuals/attendance', attendanceData, {
-        headers: { 'x-offline-key': `attendance_${Date.now()}` }
-      }).then(handleResponse).catch(handleError),
-      
-    list: (params = {}) =>
-      api.get('/casuals/attendance', { 
-        params,
-        headers: { 'x-cache-max-age': '300000' } // 5 minutes
-      }).then(handleResponse).catch(handleError)
+  workers: {
+    get: () => api.get('/workers/workers').then(response => response.data?.data || response.data).catch(handleError),
+    create: (data) => api.post('/workers/workers', data).then(response => response.data?.data || response.data).catch(handleError),
+    update: (id, data) => api.put(`/workers/workers/${id}`, data).then(response => response.data?.data || response.data).catch(handleError)
   },
-  
-  // Remuneration
+  // Attendance tracking
+  attendance: {
+    list: () => api.get('/workers/attendance').then(response => response.data?.data || response.data).catch(handleError),
+    record: (data) => api.post('/workers/attendance', data).then(response => response.data?.data || response.data).catch(handleError)
+  },
+  // Remuneration calculation
   remuneration: {
-    calculate: (id, params = {}) =>
-      api.get(`/casuals/${id}/remuneration`, {
-        params,
-        headers: { 'x-cache-max-age': '300000' } // 5 minutes
-      }).then(handleResponse).catch(handleError),
-      
-    summary: (params = {}) =>
-      api.get('/casuals/remuneration-summary', {
-        params,
-        headers: { 'x-cache-max-age': '300000' } // 5 minutes
-      }).then(handleResponse).catch(handleError)
+    calculate: (workerId, params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      return api.get(`/workers/${workerId}/remuneration?${query}`);
+    }
+  },
+  // Summary data
+  getSummary: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get('/workers/summary', {
+      params,
+      timeout: 10000
+    });
+  }
+};
+
+// Keep casualsAPI as an alias for backward compatibility during transition
+export const casualsAPI = workersAPI;
+
+// Lunch Allowance API
+export const lunchAllowanceAPI = {
+  getAll: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/lunch-allowances?${query}`).then(response => response.data?.data || response.data).catch(handleError);
+  },
+  generate: (data) => api.post('/lunch-allowances/generate', data).then(response => response.data?.data || response.data).catch(handleError),
+  update: (id, data) => api.put(`/lunch-allowances/${id}`, data).then(response => response.data?.data || response.data).catch(handleError),
+  delete: (id) => api.delete(`/lunch-allowances/${id}`).then(response => response.data?.data || response.data).catch(handleError),
+  getSummary: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/lunch-allowances/summary?${query}`).then(response => response.data?.data || response.data).catch(handleError);
   }
 };
 
 // Transactions API
 export const transactionsAPI = {
-  recordPurchase: (purchaseData) => api.post('/transactions/purchases', purchaseData),
-  getPurchases: (params) => api.get('/transactions/purchases', { params }),
-  recordRepair: (repairData) => api.post('/transactions/repairs', repairData),
-  getRepairs: (params) => api.get('/transactions/repairs', { params }),
-  updateRepair: (id, repairData) => api.put(`/transactions/repairs/${id}`, repairData),
-  getTransactionSummary: (params) => api.get('/transactions/summary', { params }),
+  getLaborCosts: (params) => api.get('/transactions/labor', { params }).then(handleResponse).catch(handleError),
+  getLunchAllowanceCosts: (params) => api.get('/transactions/lunch-allowances', { params }).then(handleResponse).catch(handleError),
+  getPurchases: (dateRange) => api.get('/transactions/purchases', { params: dateRange }),
+  recordPurchase: (data) => api.post('/transactions/purchases', data),
+  getRepairs: (dateRange) => api.get('/transactions/repairs', { params: dateRange }),
+  recordRepair: (data) => api.post('/transactions/repairs', data),
+  updateRepair: (id, data) => api.put(`/transactions/repairs/${id}`, data),
+  getTransactionSummary: (dateRange) => api.get('/transactions/summary', { params: dateRange })
+};
+
+// Task Rate API
+export const taskRateAPI = {
+  getAll: (params) => api.get('/task-rates', { params }),
+  getById: (id) => api.get(`/task-rates/${id}`),
+  create: (data) => api.post('/task-rates', data),
+  update: (id, data) => api.put(`/task-rates/${id}`, data),
+  delete: (id) => api.delete(`/task-rates/${id}`),
+  getByType: (taskType) => api.get(`/task-rates/by-type/${taskType}`)
+};
+
+// Task Completion API
+export const taskCompletionAPI = {
+  getAll: (params) => api.get('/task-completions', { params }),
+  getById: (id) => api.get(`/task-completions/${id}`),
+  record: (data) => api.post('/task-completions', data),
+  update: (id, data) => api.put(`/task-completions/${id}`, data),
+  verify: (id, notes) => api.put(`/task-completions/${id}/verify`, { notes }),
+  getWorkerSummary: (workerId, params) => api.get(`/task-completions/worker/${workerId}/summary`, { params })
 };
 
 // Reports API
@@ -377,12 +299,12 @@ export const reportsAPI = {
   invoices: {
     generate: (orderId) =>
       api.get(`/reports/invoices/${orderId}`, {
-        responseType: 'blob',
-        headers: { 'x-cache-max-age': '0' } // No caching for generated files
+        headers: { 'x-cache-max-age': '0' } // No caching for invoices
       }).then(handleResponse).catch(handleError),
       
-    preview: (orderId) =>
-      api.get(`/reports/invoices/${orderId}/preview`, {
+    list: (params = {}) =>
+      api.get('/reports/invoices', {
+        params,
         headers: { 'x-cache-max-age': '300000' } // 5 minutes
       }).then(handleResponse).catch(handleError)
   },
@@ -391,11 +313,30 @@ export const reportsAPI = {
   receipts: {
     generate: (orderId) =>
       api.get(`/reports/receipts/${orderId}`, {
-        responseType: 'blob',
-        headers: { 'x-cache-max-age': '0' } // No caching for generated files
+        headers: { 'x-cache-max-age': '0' } // No caching for receipts
+      }).then(handleResponse).catch(handleError),
+      
+    list: (params = {}) =>
+      api.get('/reports/receipts', {
+        params,
+        headers: { 'x-cache-max-age': '300000' } // 5 minutes
       }).then(handleResponse).catch(handleError)
   },
   
+  // Analytics
+  analytics: (params = {}) =>
+    api.get('/reports/analytics', {
+      params,
+      headers: { 'x-cache-max-age': '1800000' } // 30 minutes
+    }).then(handleResponse).catch(handleError),
+    
+  // Financial summary
+  financialSummary: (params = {}) =>
+    api.get('/reports/financial-summary', {
+      params,
+      headers: { 'x-cache-max-age': '3600000' } // 1 hour
+    }).then(handleResponse).catch(handleError),
+    
   // Discount approvals
   discountApprovals: (params = {}) =>
     api.get('/reports/discount-approvals', {
@@ -403,9 +344,9 @@ export const reportsAPI = {
       headers: { 'x-cache-max-age': '300000' } // 5 minutes
     }).then(handleResponse).catch(handleError),
     
-  // Casual worker reports
+  // Worker reports
   casualRemuneration: (params = {}) =>
-    api.get('/reports/casual-remuneration-summary', {
+    api.get('/reports/worker-remuneration-summary', {
       params,
       headers: { 'x-cache-max-age': '3600000' } // 1 hour
     }).then(handleResponse).catch(handleError),

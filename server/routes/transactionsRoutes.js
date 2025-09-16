@@ -5,7 +5,9 @@ const {
   recordRepair,
   getRepairs,
   updateRepair,
-  getTransactionSummary
+  getTransactionSummary,
+  getLaborCosts,
+  getLunchAllowanceCosts
 } = require('../controllers/transactionController');
 const { protect, adminOrAssistant } = require('../middleware/auth');
 
@@ -24,7 +26,13 @@ router.post('/repairs', recordRepair);
 router.get('/repairs', getRepairs);
 router.put('/repairs/:id', updateRepair);
 
+// Labor costs route
+router.get('/labor', getLaborCosts);
+
+// Lunch allowance costs route
+router.get('/lunch-allowances', getLunchAllowanceCosts);
+
 // Summary
 router.get('/summary', getTransactionSummary);
 
-module.exports = router; 
+module.exports = router;

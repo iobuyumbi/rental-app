@@ -1,16 +1,19 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import Layout from "./components/Layout";
 import { useAuth } from "./context/AuthContext";
 import Dashboard from "./pages/Dashboard";
 import InventoryPage from "./pages/InventoryPage";
 import OrdersPage from "./pages/OrdersPage";
-import CasualsPage from "./pages/CasualsPage";
+import WorkersPage from "./pages/WorkersPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import ReportsPage from "./pages/ReportsPage";
 import UsersPage from "./pages/UsersPage";
 import LoginPage from "./pages/LoginPage";
+import ClientsPage from "./pages/ClientsPage";
+import TaskManagementPage from "./pages/TaskManagementPage";
+import ViolationsPage from "./pages/ViolationsPage";
 
-const ProtectedRoute = ({ children, requireAdmin = false }) => {
+const ProtectedRoute = ({ requireAdmin = false }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
 
   if (loading) {
@@ -29,7 +32,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  return children;
+  return <Layout><Outlet /></Layout>;
 };
 
 const App = () => {
@@ -37,93 +40,22 @@ const App = () => {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
 
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Dashboard />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
+      <Route element={<ProtectedRoute />}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/inventory" element={<InventoryPage />} />
+        <Route path="/orders" element={<OrdersPage />} />
+        <Route path="/clients" element={<ClientsPage />} />
+        <Route path="/workers" element={<WorkersPage />} />
+        <Route path="/transactions" element={<TransactionsPage />} />
+        <Route path="/task-management" element={<TaskManagementPage />} />
+        <Route path="/violations" element={<ViolationsPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+      </Route>
 
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Dashboard />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/inventory"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <InventoryPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/orders"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <OrdersPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/casuals"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <CasualsPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/transactions"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <TransactionsPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/reports"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <ReportsPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/users"
-        element={
-          <ProtectedRoute requireAdmin>
-            <Layout>
-              <UsersPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
+      <Route element={<ProtectedRoute requireAdmin />}>
+        <Route path="/users" element={<UsersPage />} />
+      </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

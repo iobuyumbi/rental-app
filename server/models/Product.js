@@ -9,12 +9,8 @@ const productSchema = new mongoose.Schema({
   category: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ProductCategory',
-    required: [true, 'Category is required']
-  },
-  type: {
-    type: String,
-    required: [true, 'Product type is required'],
-    trim: true
+    required: [true, 'Category is required'],
+    index: true
   },
   rentalPrice: {
     type: Number,

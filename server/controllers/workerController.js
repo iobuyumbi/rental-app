@@ -1,9 +1,9 @@
 const asyncHandler = require('../middleware/asyncHandler');
-const CasualWorker = require('../models/CasualWorker');
-const CasualAttendance = require('../models/CasualAttendance');
+const CasualWorker = require('../models/Worker');
+const CasualAttendance = require('../models/WorkersAttendance');
 
 // @desc    Get all casual workers
-// @route   GET /api/casuals/workers
+// @route   GET /api/workers/workers
 // @access  Private
 const getWorkers = asyncHandler(async (req, res) => {
   const workers = await CasualWorker.find({ active: true });
@@ -15,7 +15,7 @@ const getWorkers = asyncHandler(async (req, res) => {
 });
 
 // @desc    Add new casual worker
-// @route   POST /api/casuals/workers
+// @route   POST /api/workers/workers
 // @access  Private
 const addWorker = asyncHandler(async (req, res) => {
   const worker = await CasualWorker.create(req.body);
@@ -26,7 +26,7 @@ const addWorker = asyncHandler(async (req, res) => {
 });
 
 // @desc    Update casual worker
-// @route   PUT /api/casuals/workers/:id
+// @route   PUT /api/workers/workers/:id
 // @access  Private
 const updateWorker = asyncHandler(async (req, res) => {
   let worker = await CasualWorker.findById(req.params.id);
@@ -48,7 +48,7 @@ const updateWorker = asyncHandler(async (req, res) => {
 });
 
 // @desc    Record attendance
-// @route   POST /api/casuals/attendance
+// @route   POST /api/workers/attendance
 // @access  Private
 const recordAttendance = asyncHandler(async (req, res) => {
   const { casual, date, order, activities, hoursWorked, notes } = req.body;
@@ -84,7 +84,7 @@ const recordAttendance = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get attendance records
-// @route   GET /api/casuals/attendance
+// @route   GET /api/workers/attendance
 // @access  Private
 const getAttendance = asyncHandler(async (req, res) => {
   const { date, worker, startDate, endDate } = req.query;
@@ -119,7 +119,7 @@ const getAttendance = asyncHandler(async (req, res) => {
 });
 
 // @desc    Calculate remuneration for a worker
-// @route   GET /api/casuals/:id/remuneration
+// @route   GET /api/workers/:id/remuneration
 // @access  Private
 const calculateRemuneration = asyncHandler(async (req, res) => {
   const { startDate, endDate } = req.query;

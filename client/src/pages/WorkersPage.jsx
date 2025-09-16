@@ -9,10 +9,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Users, Plus, Calendar, DollarSign, Clock, Edit, Trash2, CheckCircle } from 'lucide-react';
-import { casualsAPI } from '../services/api';
+import { workersAPI } from '../services/api';
 import { toast } from 'sonner';
 
-const CasualsPage = () => {
+const WorkersPage = () => {
   const [workers, setWorkers] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,14 +43,14 @@ const CasualsPage = () => {
     try {
       setLoading(true);
       const [workersRes, attendanceRes] = await Promise.all([
-        casualsAPI.workers.get(),
-        casualsAPI.attendance.list()
+        workersAPI.workers.get(),
+        workersAPI.attendance.list()
       ]);
-      setWorkers(workersRes.data || []);
-      setAttendance(attendanceRes.data || []);
+      setWorkers(Array.isArray(workersRes) ? workersRes : []);
+      setAttendance(Array.isArray(attendanceRes) ? attendanceRes : []);
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Failed to load casual workers data');
+      toast.error('Failed to load workers data');
     } finally {
       setLoading(false);
     }
@@ -59,9 +59,15 @@ const CasualsPage = () => {
   const handleAddWorker = async (e) => {
     e.preventDefault();
     try {
-      await casualsAPI.workers.create({
-        ...newWorker,
-        dailyRate: parseFloat(newWorker.dailyRate)
+      const dailyRate = parseFloat(newWorker.dailyRate);
+      await workersAPI.workers.create({
+        name: newWorker.name,
+        phone: newWorker.phone,
+        nationalId: newWorker.nationalId,
+        skills: newWorker.skills,
+        ratePerHour: dailyRate / 8, // Assuming 8-hour work day
+        standardDailyRate: dailyRate,
+        dailyRate: dailyRate
       });
       toast.success('Worker added successfully');
       setShowAddWorker(false);
@@ -76,10 +82,31 @@ const CasualsPage = () => {
   const handleRecordAttendance = async (e) => {
     e.preventDefault();
     try {
-      await casualsAPI.attendance.record({
+      // Record attendance
+      await workersAPI.attendance.record({
         ...attendanceForm,
         hoursWorked: parseFloat(attendanceForm.hoursWorked)
       });
+
+      // If worker is present, automatically create lunch allowance entry
+      if (attendanceForm.status === 'Present') {
+        try {
+          const lunchAllowanceAPI = (await import('../services/api')).lunchAllowanceAPI;
+          await lunchAllowanceAPI.create({
+            workerId: attendanceForm.workerId,
+            date: attendanceForm.date,
+            amount: 100, // Minimum KES 100 as specified
+            status: 'provided',
+            hoursWorked: parseFloat(attendanceForm.hoursWorked),
+            taskDescription: attendanceForm.taskDescription
+          });
+        } catch (lunchError) {
+          console.error('Error creating lunch allowance:', lunchError);
+          // Don't fail the whole operation if lunch allowance fails
+          toast.warning('Attendance recorded but lunch allowance creation failed');
+        }
+      }
+
       toast.success('Attendance recorded successfully');
       setShowAttendance(false);
       setAttendanceForm({
@@ -98,7 +125,7 @@ const CasualsPage = () => {
 
   const loadRemuneration = async (workerId) => {
     try {
-      const response = await casualsAPI.remuneration.calculate(workerId);
+      const response = await workersAPI.remuneration.calculate(workerId);
       setRemunerationData(prev => ({ ...prev, [workerId]: response.data }));
     } catch (error) {
       console.error('Error loading remuneration:', error);
@@ -115,7 +142,7 @@ const CasualsPage = () => {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading casual workers...</p>
+          <p className="mt-2 text-gray-600">Loading workers...</p>
         </div>
       </div>
     );
@@ -125,8 +152,8 @@ const CasualsPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Casual Workers</h1>
-          <p className="text-gray-600">Manage casual workers and attendance</p>
+          <h1 className="text-3xl font-bold text-gray-900">Workers</h1>
+          <p className="text-gray-600">Manage workers and attendance</p>
         </div>
         <div className="flex gap-2">
           <Dialog open={showAttendance} onOpenChange={setShowAttendance}>
@@ -140,7 +167,7 @@ const CasualsPage = () => {
               <DialogHeader>
                 <DialogTitle>Record Attendance</DialogTitle>
                 <DialogDescription>
-                  Record daily attendance for a casual worker
+                  Record daily attendance for a worker
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleRecordAttendance} className="space-y-4">
@@ -220,9 +247,9 @@ const CasualsPage = () => {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add New Casual Worker</DialogTitle>
+                <DialogTitle>Add New Worker</DialogTitle>
                 <DialogDescription>
-                  Register a new casual worker in the system
+                  Register a new worker in the system
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleAddWorker} className="space-y-4">
@@ -254,7 +281,7 @@ const CasualsPage = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="dailyRate">Daily Rate (KSH)</Label>
+                  <Label htmlFor="dailyRate">Daily Rate (KES)</Label>
                   <Input
                     id="dailyRate"
                     type="number"
@@ -295,7 +322,7 @@ const CasualsPage = () => {
             <CardHeader>
               <CardTitle>Registered Workers</CardTitle>
               <CardDescription>
-                Manage casual workers and their information
+                Manage workers and their information
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -303,7 +330,7 @@ const CasualsPage = () => {
                 <div className="text-center py-8">
                   <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                   <p className="text-gray-600">No workers registered yet</p>
-                  <p className="text-sm text-gray-500">Add your first casual worker to get started</p>
+                  <p className="text-sm text-gray-500">Add your first worker to get started</p>
                 </div>
               ) : (
                 <Table>
@@ -323,7 +350,7 @@ const CasualsPage = () => {
                         <TableCell className="font-medium">{worker.name}</TableCell>
                         <TableCell>{worker.phone}</TableCell>
                         <TableCell>{worker.nationalId}</TableCell>
-                        <TableCell>KSH {worker.dailyRate?.toLocaleString()}</TableCell>
+                        <TableCell>KES {worker.dailyRate?.toLocaleString()}</TableCell>
                         <TableCell>
                           {worker.skills && (
                             <Badge variant="outline">{worker.skills}</Badge>
@@ -401,7 +428,7 @@ const CasualsPage = () => {
                               {record.status}
                             </Badge>
                           </TableCell>
-                          <TableCell>KSH {amount.toLocaleString()}</TableCell>
+                          <TableCell>KES {amount.toLocaleString()}</TableCell>
                         </TableRow>
                       );
                     })}
@@ -421,14 +448,14 @@ const CasualsPage = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {workers.length === 0 ? (
+              {!Array.isArray(workers) || workers.length === 0 ? (
                 <div className="text-center py-8">
                   <DollarSign className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                   <p className="text-gray-600">No workers to calculate remuneration</p>
                 </div>
               ) : (
                 <div className="grid gap-4">
-                  {workers.map((worker) => {
+                  {Array.isArray(workers) && workers.map((worker) => {
                     const workerAttendance = getWorkerAttendance(worker._id);
                     const totalHours = workerAttendance.reduce((sum, att) => sum + (att.hoursWorked || 0), 0);
                     const totalAmount = (worker.dailyRate / 8) * totalHours;
@@ -446,10 +473,10 @@ const CasualsPage = () => {
                             </div>
                             <div className="text-right">
                               <p className="text-2xl font-bold text-green-600">
-                                KSH {totalAmount.toLocaleString()}
+                                KES {totalAmount.toLocaleString()}
                               </p>
                               <p className="text-sm text-gray-600">
-                                @ KSH {worker.dailyRate}/day
+                                @ KES {worker.dailyRate}/day
                               </p>
                             </div>
                           </div>
@@ -459,8 +486,8 @@ const CasualsPage = () => {
                               <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div>Regular Hours: {remuneration.regularHours}h</div>
                                 <div>Overtime Hours: {remuneration.overtimeHours}h</div>
-                                <div>Regular Pay: KSH {remuneration.regularPay?.toLocaleString()}</div>
-                                <div>Overtime Pay: KSH {remuneration.overtimePay?.toLocaleString()}</div>
+                                <div>Regular Pay: KES {remuneration.regularPay?.toLocaleString()}</div>
+                                <div>Overtime Pay: KES {remuneration.overtimePay?.toLocaleString()}</div>
                               </div>
                             </div>
                           )}
@@ -478,4 +505,4 @@ const CasualsPage = () => {
   );
 };
 
-export default CasualsPage;
+export default WorkersPage;

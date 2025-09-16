@@ -5,29 +5,6 @@ const Client = require('../models/Client');
 const Product = require('../models/Product');
 const Violation = require('../models/Violation');
 
-// @desc    Get all clients
-// @route   GET /api/orders/clients
-// @access  Public
-const getClients = asyncHandler(async (req, res) => {
-  const clients = await Client.find({});
-  res.json({
-    success: true,
-    count: clients.length,
-    data: clients
-  });
-});
-
-// @desc    Add new client
-// @route   POST /api/orders/clients
-// @access  Private
-const addClient = asyncHandler(async (req, res) => {
-  const client = await Client.create(req.body);
-  res.status(201).json({
-    success: true,
-    data: client
-  });
-});
-
 // @desc    Get all orders
 // @route   GET /api/orders
 // @access  Private
@@ -369,8 +346,6 @@ const resolveViolation = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  getClients,
-  addClient,
   getOrders,
   getOrder,
   createOrder,

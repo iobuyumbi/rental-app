@@ -3,8 +3,8 @@ const Order = require('../models/Order');
 const OrderItem = require('../models/OrderItem');
 const Product = require('../models/Product');
 const Violation = require('../models/Violation');
-const CasualWorker = require('../models/CasualWorker');
-const CasualAttendance = require('../models/CasualAttendance');
+const CasualWorker = require('../models/Worker');
+const CasualAttendance = require('../models/WorkersAttendance');
 
 // @desc    Generate invoice data for an order
 // @route   GET /api/reports/invoices/:orderId
@@ -129,10 +129,10 @@ const getDiscountApprovals = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get casual remuneration summary
-// @route   GET /api/reports/casual-remuneration-summary
+// @desc    Get worker remuneration summary
+// @route   GET /api/reports/worker-remuneration-summary
 // @access  Private
-const getCasualRemunerationSummary = asyncHandler(async (req, res) => {
+const getWorkerRemunerationSummary = asyncHandler(async (req, res) => {
   const { startDate, endDate } = req.query;
   
   if (!startDate || !endDate) {
@@ -291,7 +291,7 @@ module.exports = {
   generateInvoice,
   generateReceipt,
   getDiscountApprovals,
-  getCasualRemunerationSummary,
+  getWorkerRemunerationSummary,
   getInventoryStatus,
   getOverdueReturns
 }; 

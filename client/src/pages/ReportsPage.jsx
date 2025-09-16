@@ -381,7 +381,7 @@ const ReportsPage = () => {
                           <TableCell>
                             <Badge variant="destructive">{daysOverdue} days</Badge>
                           </TableCell>
-                          <TableCell>KSH {order.totalAmount?.toLocaleString()}</TableCell>
+                          <TableCell>KES {order.totalAmount?.toLocaleString()}</TableCell>
                           <TableCell>
                             <Button variant="outline" size="sm">
                               <Eye className="h-4 w-4" />
@@ -476,7 +476,7 @@ const ReportsPage = () => {
                             {discount.discountPercentage}% off
                           </p>
                           <p className="text-sm text-gray-600">
-                            KSH {discount.discountAmount?.toLocaleString()}
+                            KES {discount.discountAmount?.toLocaleString()}
                           </p>
                         </div>
                       </div>
@@ -519,7 +519,7 @@ const ReportsPage = () => {
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-blue-600">
-                            KSH {worker.totalAmount?.toLocaleString()}
+                            KES {worker.totalAmount?.toLocaleString()}
                           </p>
                           <p className="text-sm text-gray-600">
                             {worker.daysWorked} days
