@@ -1,3 +1,4 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 const TaskRate = require('../models/TaskRate');
 const connectDB = require('../config/db');
@@ -203,9 +204,12 @@ const defaultTaskRates = [
 
 const seedTaskRates = async () => {
   try {
+    console.log('Starting task rate seeder...');
+    console.log('MongoDB URI:', process.env.MONGO_URI ? 'Found' : 'Not found');
+    
     // Connect to database
     await connectDB();
-    console.log('Connected to database');
+    console.log('Connected to database successfully');
 
     // Clear existing task rates
     await TaskRate.deleteMany({});

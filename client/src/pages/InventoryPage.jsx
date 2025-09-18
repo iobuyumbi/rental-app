@@ -225,12 +225,12 @@ const InventoryPage = () => {
     {
       header: 'Category',
       accessor: 'category',
-      render: (product) => product.category?.name || 'No Category'
+      render: (value, product) => product.category?.name || 'No Category'
     },
     {
       header: 'Stock',
       accessor: 'quantityInStock',
-      render: (product) => {
+      render: (value, product) => {
         const stock = product.quantityInStock || 0;
         const rented = product.quantityRented || 0;
         const available = stock - rented;
@@ -264,12 +264,13 @@ const InventoryPage = () => {
     {
       header: 'Description',
       accessor: 'description',
-      render: (category) => category.description || 'No description'
+      render: (value, category) => category?.description || 'No description'
     },
     {
       header: 'Products',
       accessor: 'productCount',
-      render: (category) => {
+      render: (value, category) => {
+        if (!category || !category._id) return '0 products';
         const count = products.filter(p => p.category?._id === category._id).length;
         return `${count} products`;
       }
@@ -279,7 +280,7 @@ const InventoryPage = () => {
       accessor: 'isActive',
       type: 'badge',
       getBadgeVariant: (isActive) => isActive ? 'default' : 'secondary',
-      render: (category) => category.isActive ? 'Active' : 'Inactive'
+      render: (value, category) => category?.isActive ? 'Active' : 'Inactive'
     }
   ];
 
@@ -304,7 +305,7 @@ const InventoryPage = () => {
 
   const categoryOptions = categories.length > 0 
     ? categories
-        .filter(cat => cat.isActive !== false)
+        .filter(cat => cat && cat.isActive !== false)
         .map(cat => ({ value: cat._id, label: `${cat.name} (${cat.type})` }))
     : [{ value: '', label: 'No categories available - Create one first' }];
 
@@ -492,7 +493,7 @@ const InventoryPage = () => {
           label="Product Name"
           name="name"
           value={productForm.values.name || ''}
-          onChange={productForm.handleChange}
+          onChange={(e) => productForm.handleChange('name', e.target.value)}
           error={productForm.errors.name}
           required
           placeholder="Enter product name"
@@ -502,7 +503,7 @@ const InventoryPage = () => {
           label="Category"
           name="category"
           value={productForm.values.category || ''}
-          onChange={productForm.handleChange}
+          onChange={(e) => productForm.handleChange('category', e.target.value)}
           error={productForm.errors.category}
           required
           options={categoryOptions}
@@ -515,7 +516,7 @@ const InventoryPage = () => {
             name="rentalPrice"
             type="number"
             value={productForm.values.rentalPrice || ''}
-            onChange={productForm.handleChange}
+            onChange={(e) => productForm.handleChange('rentalPrice', e.target.value)}
             error={productForm.errors.rentalPrice}
             required
             placeholder="0.00"
@@ -526,7 +527,7 @@ const InventoryPage = () => {
             name="purchasePrice"
             type="number"
             value={productForm.values.purchasePrice || ''}
-            onChange={productForm.handleChange}
+            onChange={(e) => productForm.handleChange('purchasePrice', e.target.value)}
             error={productForm.errors.purchasePrice}
             placeholder="0.00"
           />
@@ -538,7 +539,7 @@ const InventoryPage = () => {
             name="quantityInStock"
             type="number"
             value={productForm.values.quantityInStock || ''}
-            onChange={productForm.handleChange}
+            onChange={(e) => productForm.handleChange('quantityInStock', e.target.value)}
             error={productForm.errors.quantityInStock}
             required
             placeholder="0"
@@ -548,7 +549,7 @@ const InventoryPage = () => {
             label="Condition"
             name="condition"
             value={productForm.values.condition || ''}
-            onChange={productForm.handleChange}
+            onChange={(e) => productForm.handleChange('condition', e.target.value)}
             error={productForm.errors.condition}
             required
             options={conditionOptions}
@@ -560,7 +561,7 @@ const InventoryPage = () => {
           label="Description"
           name="description"
           value={productForm.values.description || ''}
-          onChange={productForm.handleChange}
+          onChange={(e) => productForm.handleChange('description', e.target.value)}
           error={productForm.errors.description}
           placeholder="Product description..."
         />
@@ -570,7 +571,7 @@ const InventoryPage = () => {
           name="imageUrl"
           type="url"
           value={productForm.values.imageUrl || ''}
-          onChange={productForm.handleChange}
+          onChange={(e) => productForm.handleChange('imageUrl', e.target.value)}
           error={productForm.errors.imageUrl}
           placeholder="https://..."
         />
@@ -594,7 +595,7 @@ const InventoryPage = () => {
           label="Category Name"
           name="name"
           value={categoryForm.values.name || ''}
-          onChange={categoryForm.handleChange}
+          onChange={(e) => categoryForm.handleChange('name', e.target.value)}
           error={categoryForm.errors.name}
           required
           placeholder="Enter category name"
@@ -604,7 +605,7 @@ const InventoryPage = () => {
           label="Category Type"
           name="type"
           value={categoryForm.values.type || ''}
-          onChange={categoryForm.handleChange}
+          onChange={(e) => categoryForm.handleChange('type', e.target.value)}
           error={categoryForm.errors.type}
           required
           options={categoryTypeOptions}
@@ -615,7 +616,7 @@ const InventoryPage = () => {
           label="Description"
           name="description"
           value={categoryForm.values.description || ''}
-          onChange={categoryForm.handleChange}
+          onChange={(e) => categoryForm.handleChange('description', e.target.value)}
           error={categoryForm.errors.description}
           placeholder="Category description..."
         />
@@ -628,7 +629,7 @@ const InventoryPage = () => {
             step="0.1"
             min="0.1"
             value={categoryForm.values.rentalPriceMultiplier || ''}
-            onChange={categoryForm.handleChange}
+            onChange={(e) => categoryForm.handleChange('rentalPriceMultiplier', e.target.value)}
             error={categoryForm.errors.rentalPriceMultiplier}
             placeholder="1.0"
           />
@@ -639,7 +640,7 @@ const InventoryPage = () => {
             type="number"
             min="0"
             value={categoryForm.values.maintenanceIntervalDays || ''}
-            onChange={categoryForm.handleChange}
+            onChange={(e) => categoryForm.handleChange('maintenanceIntervalDays', e.target.value)}
             error={categoryForm.errors.maintenanceIntervalDays}
             placeholder="0"
           />
@@ -650,7 +651,7 @@ const InventoryPage = () => {
           name="imageUrl"
           type="url"
           value={categoryForm.values.imageUrl || ''}
-          onChange={categoryForm.handleChange}
+          onChange={(e) => categoryForm.handleChange('imageUrl', e.target.value)}
           error={categoryForm.errors.imageUrl}
           placeholder="https://..."
         />

@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DataTable } from '@/components/ui/data-table';
+import DataTable from '../components/common/DataTable';
 import { AlertTriangle, CheckCircle, Clock, DollarSign } from 'lucide-react';
 import { ordersAPI } from '@/services/api';
 import { toast } from 'sonner';
-import { useForm } from '@/hooks/useForm';
+
 
 const ViolationsPage = () => {
   const [violations, setViolations] = useState([]);

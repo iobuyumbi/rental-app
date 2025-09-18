@@ -197,14 +197,12 @@ export const inventoryAPI = {
 
 // Orders API
 export const ordersAPI = {
-  getAll: (params) => api.get('/orders', { params }).then(handleResponse).catch(handleError),
   getClients: () => api.get('/clients').then(handleResponse).catch(handleError),
   addClient: (clientData) => api.post('/clients', clientData).then(handleResponse).catch(handleError),
   getOrders: (params) => api.get('/orders', { params }).then(handleResponse).catch(handleError),
   getOrder: (id) => api.get(`/orders/${id}`).then(handleResponse).catch(handleError),
   createOrder: (orderData) => api.post('/orders', orderData).then(handleResponse).catch(handleError),
   updateOrder: (id, orderData) => api.put(`/orders/${id}`, orderData).then(handleResponse).catch(handleError),
-  deleteOrder: (id) => api.delete(`/orders/${id}`).then(handleResponse).catch(handleError),
   markReturned: (id) => api.put(`/orders/${id}/return`).then(handleResponse).catch(handleError),
   requestDiscount: (id, discountData) => api.post(`/orders/${id}/discount/request`, discountData).then(handleResponse).catch(handleError),
   approveDiscount: (id, approvalData) => api.put(`/orders/${id}/discount/approve`, approvalData).then(handleResponse).catch(handleError),
@@ -217,9 +215,9 @@ export const ordersAPI = {
 export const workersAPI = {
   // Workers management
   workers: {
-    get: () => api.get('/workers/workers').then(response => response.data?.data || response.data).catch(handleError),
-    create: (data) => api.post('/workers/workers', data).then(response => response.data?.data || response.data).catch(handleError),
-    update: (id, data) => api.put(`/workers/workers/${id}`, data).then(response => response.data?.data || response.data).catch(handleError)
+    get: () => api.get('/workers').then(response => response.data?.data || response.data).catch(handleError),
+    create: (data) => api.post('/workers', data).then(response => response.data?.data || response.data).catch(handleError),
+    update: (id, data) => api.put(`/workers/${id}`, data).then(response => response.data?.data || response.data).catch(handleError)
   },
   // Attendance tracking
   attendance: {
@@ -236,7 +234,7 @@ export const workersAPI = {
   // Summary data
   getSummary: (params = {}) => {
     const query = new URLSearchParams(params).toString();
-    return api.get('/workers/summary', {
+    return api.get('/workers/remuneration-summary', {
       params,
       timeout: 10000
     });
@@ -299,44 +297,19 @@ export const reportsAPI = {
   invoices: {
     generate: (orderId) =>
       api.get(`/reports/invoices/${orderId}`, {
-        headers: { 'x-cache-max-age': '0' } // No caching for invoices
-      }).then(handleResponse).catch(handleError),
-      
-    list: (params = {}) =>
-      api.get('/reports/invoices', {
-        params,
-        headers: { 'x-cache-max-age': '300000' } // 5 minutes
+        headers: { 'x-cache-max-age': '0' }
       }).then(handleResponse).catch(handleError)
   },
-  
+
   // Receipts
   receipts: {
     generate: (orderId) =>
       api.get(`/reports/receipts/${orderId}`, {
-        headers: { 'x-cache-max-age': '0' } // No caching for receipts
-      }).then(handleResponse).catch(handleError),
-      
-    list: (params = {}) =>
-      api.get('/reports/receipts', {
-        params,
-        headers: { 'x-cache-max-age': '300000' } // 5 minutes
+        headers: { 'x-cache-max-age': '0' }
       }).then(handleResponse).catch(handleError)
   },
   
   // Analytics
-  analytics: (params = {}) =>
-    api.get('/reports/analytics', {
-      params,
-      headers: { 'x-cache-max-age': '1800000' } // 30 minutes
-    }).then(handleResponse).catch(handleError),
-    
-  // Financial summary
-  financialSummary: (params = {}) =>
-    api.get('/reports/financial-summary', {
-      params,
-      headers: { 'x-cache-max-age': '3600000' } // 1 hour
-    }).then(handleResponse).catch(handleError),
-    
   // Discount approvals
   discountApprovals: (params = {}) =>
     api.get('/reports/discount-approvals', {
@@ -364,13 +337,7 @@ export const reportsAPI = {
       headers: { 'x-cache-max-age': '300000' } // 5 minutes
     }).then(handleResponse).catch(handleError),
     
-  // Export reports
-  export: (reportType, format = 'csv', params = {}) =>
-    api.get(`/reports/export/${reportType}.${format}`, {
-      params,
-      responseType: 'blob',
-      headers: { 'x-cache-max-age': '0' } // No caching for exports
-    }).then(handleResponse).catch(handleError)
+  // Note: Export and analytics endpoints are not implemented on the server
 };
 
 export default api;

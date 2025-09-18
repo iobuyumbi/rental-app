@@ -25,6 +25,28 @@ const addCategory = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Update product category
+// @route   PUT /api/inventory/categories/:id
+// @access  Private
+const updateCategory = asyncHandler(async (req, res) => {
+  let category = await ProductCategory.findById(req.params.id);
+  
+  if (!category) {
+    res.status(404);
+    throw new Error('Category not found');
+  }
+  
+  category = await ProductCategory.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+    runValidators: true
+  });
+  
+  res.json({
+    success: true,
+    data: category
+  });
+});
+
 // @desc    Get all products
 // @route   GET /api/inventory/products
 // @access  Public
@@ -146,6 +168,7 @@ const getAvailableProducts = asyncHandler(async (req, res) => {
 module.exports = {
   getCategories,
   addCategory,
+  updateCategory,
   getProducts,
   getProduct,
   addProduct,

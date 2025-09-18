@@ -4,21 +4,59 @@ import { Users, Plus } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import DataTable from '../common/DataTable';
+import FormModal, { FormInput, FormSelect, FormTextarea } from '../common/FormModal';
 import useDataManager from '../../hooks/useDataManager';
-import { authAPI } from '../../services/api';
+import { useFormManager } from '../../hooks/useFormManager';
+import { ordersAPI } from '../../services/api';
+import { toast } from 'sonner';
 
 const ClientList = () => {
   const [clientType, setClientType] = useState('all');
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
 
-  // Use the new data manager hook
+  // Use the new data manager hook with proper client API
   const {
     data: clients,
     loading,
-    error
+    error,
+    createItem: createClient,
+    updateItem: updateClient,
+    deleteItem: deleteClient,
+    refresh: refreshClients
   } = useDataManager({
-    fetchFn: authAPI.users.get, // Assuming clients are managed through users API
+    fetchFn: ordersAPI.getClients,
+    createFn: ordersAPI.addClient,
     entityName: 'client',
     autoLoad: true
+  });
+
+  // Form management for client creation/editing
+  const clientForm = useFormManager({
+    initialData: {
+      name: '',
+      email: '',
+      phone: '',
+      type: 'direct',
+      status: 'active',
+      address: '',
+      notes: ''
+    },
+    validationRules: {
+      name: { required: true },
+      email: { required: true, email: true },
+      phone: { required: true },
+      type: { required: true },
+      status: { required: true }
+    },
+    onSubmit: async (formData) => {
+      if (editingClient) {
+        await updateClient(editingClient._id, formData);
+      } else {
+        await createClient(formData);
+      }
+      handleCloseModal();
+    }
   });
 
   // Filter clients by type
@@ -43,8 +81,8 @@ const ClientList = () => {
     {
       header: 'Type',
       accessor: 'type',
-      render: (client) => (
-        <span className="capitalize">{client.type || 'N/A'}</span>
+      render: (value, client) => (
+        <span className="capitalize">{client?.type || 'N/A'}</span>
       )
     },
     {
@@ -74,13 +112,29 @@ const ClientList = () => {
   ];
 
   const handleEdit = (client) => {
-    // Navigate to edit page
-    window.location.href = `/clients/${client._id}/edit`;
+    setEditingClient(client);
+    clientForm.setFormData({
+      name: client.name || '',
+      email: client.email || '',
+      phone: client.phone || '',
+      type: client.type || 'direct',
+      status: client.status || 'active',
+      address: client.address || '',
+      notes: client.notes || ''
+    });
+    setShowAddClient(true);
   };
 
   const handleAddClient = () => {
-    // Navigate to add client page
-    window.location.href = '/clients/new';
+    setEditingClient(null);
+    clientForm.reset();
+    setShowAddClient(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowAddClient(false);
+    setEditingClient(null);
+    clientForm.reset();
   };
 
   if (error) {
@@ -102,10 +156,6 @@ const ClientList = () => {
             Manage your client relationships and contact information
           </p>
         </div>
-        <Button onClick={handleAddClient}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Client
-        </Button>
       </div>
 
       {/* Filters */}
@@ -126,16 +176,116 @@ const ClientList = () => {
 
       {/* Data Table */}
       <DataTable
+        title="Client Directory"
+        description="Manage your client relationships and contact information"
         data={filteredClients}
         columns={columns}
         loading={loading}
         searchable={true}
         searchPlaceholder="Search clients by name, email, or phone..."
+        onAdd={handleAddClient}
         onEdit={handleEdit}
+        onDelete={deleteClient}
         actions={actions}
+        addLabel="Add Client"
         emptyMessage="No clients found. Add your first client to get started."
         emptyIcon={Users}
       />
+
+      {/* Client Form Modal */}
+      <FormModal
+        isOpen={showAddClient}
+        onOpenChange={(open) => !open && handleCloseModal()}
+        title={editingClient ? 'Edit Client' : 'Add New Client'}
+        onSubmit={clientForm.handleSubmit}
+        loading={clientForm.isSubmitting}
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <FormInput
+            label="Full Name"
+            name="name"
+            value={clientForm.values.name || ''}
+            onChange={(e) => clientForm.handleChange('name', e.target.value)}
+            error={clientForm.errors.name}
+            required
+            placeholder="Enter client's full name"
+          />
+          
+          <FormInput
+            label="Email"
+            name="email"
+            type="email"
+            value={clientForm.values.email || ''}
+            onChange={(e) => clientForm.handleChange('email', e.target.value)}
+            error={clientForm.errors.email}
+            required
+            placeholder="client@example.com"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormInput
+            label="Phone"
+            name="phone"
+            type="tel"
+            value={clientForm.values.phone || ''}
+            onChange={(e) => clientForm.handleChange('phone', e.target.value)}
+            error={clientForm.errors.phone}
+            required
+            placeholder="+254 700 000 000"
+          />
+          
+          <FormSelect
+            label="Client Type"
+            name="type"
+            value={clientForm.values.type || 'direct'}
+            onChange={(e) => clientForm.handleChange('type', e.target.value)}
+            error={clientForm.errors.type}
+            required
+            options={[
+              { value: 'direct', label: 'Direct Client' },
+              { value: 'vendor', label: 'Vendor' },
+              { value: 'corporate', label: 'Corporate' },
+              { value: 'individual', label: 'Individual' }
+            ]}
+          />
+        </div>
+
+        <FormInput
+          label="Address"
+          name="address"
+          value={clientForm.values.address || ''}
+          onChange={(e) => clientForm.handleChange('address', e.target.value)}
+          error={clientForm.errors.address}
+          placeholder="Client's address"
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormSelect
+            label="Status"
+            name="status"
+            value={clientForm.values.status || 'active'}
+            onChange={(e) => clientForm.handleChange('status', e.target.value)}
+            error={clientForm.errors.status}
+            required
+            options={[
+              { value: 'active', label: 'Active' },
+              { value: 'inactive', label: 'Inactive' },
+              { value: 'suspended', label: 'Suspended' }
+            ]}
+          />
+        </div>
+
+        <FormTextarea
+          label="Notes"
+          name="notes"
+          value={clientForm.values.notes || ''}
+          onChange={(e) => clientForm.handleChange('notes', e.target.value)}
+          error={clientForm.errors.notes}
+          placeholder="Additional notes about the client..."
+          rows={3}
+        />
+      </FormModal>
     </div>
   );
 };

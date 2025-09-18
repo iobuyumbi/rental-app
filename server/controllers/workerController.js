@@ -3,7 +3,7 @@ const CasualWorker = require('../models/Worker');
 const CasualAttendance = require('../models/WorkersAttendance');
 
 // @desc    Get all casual workers
-// @route   GET /api/workers/workers
+// @route   GET /api/workers
 // @access  Private
 const getWorkers = asyncHandler(async (req, res) => {
   const workers = await CasualWorker.find({ active: true });
@@ -15,7 +15,7 @@ const getWorkers = asyncHandler(async (req, res) => {
 });
 
 // @desc    Add new casual worker
-// @route   POST /api/workers/workers
+// @route   POST /api/workers
 // @access  Private
 const addWorker = asyncHandler(async (req, res) => {
   const worker = await CasualWorker.create(req.body);
@@ -26,7 +26,7 @@ const addWorker = asyncHandler(async (req, res) => {
 });
 
 // @desc    Update casual worker
-// @route   PUT /api/workers/workers/:id
+// @route   PUT /api/workers/:id
 // @access  Private
 const updateWorker = asyncHandler(async (req, res) => {
   let worker = await CasualWorker.findById(req.params.id);
@@ -184,7 +184,7 @@ const calculateRemuneration = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get remuneration summary for all workers
-// @route   GET /api/casuals/remuneration-summary
+// @route   GET /api/workers/remuneration-summary
 // @access  Private
 const getRemunerationSummary = asyncHandler(async (req, res) => {
   const { startDate, endDate } = req.query;

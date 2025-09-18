@@ -54,13 +54,13 @@ const DataTable = ({
       return renderCell(item, column);
     }
 
-    // Use new render function if provided
-    if (column.render) {
-      return column.render(item);
-    }
-
     const accessor = column.accessor || column.key;
     const value = accessor ? item[accessor] : '';
+
+    // Use new render function if provided
+    if (column.render) {
+      return column.render(value, item);
+    }
 
     // Handle different cell types
     switch (column.type) {
@@ -77,7 +77,11 @@ const DataTable = ({
       case 'boolean':
         return value ? 'Yes' : 'No';
       default:
-        return value;
+        // Handle objects safely - don't render them directly
+        if (typeof value === 'object' && value !== null) {
+          return JSON.stringify(value);
+        }
+        return value || '';
     }
   };
 

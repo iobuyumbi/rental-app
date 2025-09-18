@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+// Removed Select import - using native select elements
 
 const FormModal = ({
   isOpen,
@@ -79,20 +79,23 @@ export const FormTextarea = ({ label, error, required, ...props }) => (
   </FormField>
 );
 
-export const FormSelect = ({ label, error, required, options, placeholder, ...props }) => (
+export const FormSelect = ({ label, error, required, options, placeholder, value, onChange, name, ...props }) => (
   <FormField label={label} error={error} required={required}>
-    <Select {...props}>
-      <SelectTrigger>
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <select
+      value={value || ''}
+      onChange={onChange}
+      name={name}
+      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      required={required}
+      {...props}
+    >
+      {placeholder && <option value="">{placeholder}</option>}
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
   </FormField>
 );
 

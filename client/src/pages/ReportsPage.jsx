@@ -86,19 +86,9 @@ const ReportsPage = () => {
     try {
       setLoading(true);
       const response = await reportsAPI.invoices.generate(orderId);
-      
-      // Create blob and download
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `invoice-${orderId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success('Invoice generated successfully');
+      // Server returns JSON invoice data, not a PDF. Optionally display or handle it here.
+      console.debug('Invoice data:', response);
+      toast.success('Invoice data generated');
     } catch (error) {
       console.error('Error generating invoice:', error);
       toast.error('Failed to generate invoice');
@@ -111,19 +101,9 @@ const ReportsPage = () => {
     try {
       setLoading(true);
       const response = await reportsAPI.receipts.generate(orderId);
-      
-      // Create blob and download
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `receipt-${orderId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success('Receipt generated successfully');
+      // Server returns JSON receipt data, not a PDF.
+      console.debug('Receipt data:', response);
+      toast.success('Receipt data generated');
     } catch (error) {
       console.error('Error generating receipt:', error);
       toast.error('Failed to generate receipt');
@@ -132,32 +112,7 @@ const ReportsPage = () => {
     }
   };
 
-  const exportReport = async (reportType, format = 'csv') => {
-    try {
-      setLoading(true);
-      const response = await reportsAPI.export(reportType, format, dateRange);
-      
-      // Create blob and download
-      const blob = new Blob([response.data], { 
-        type: format === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-      });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${reportType}-${new Date().toISOString().split('T')[0]}.${format}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success(`${reportType} report exported successfully`);
-    } catch (error) {
-      console.error('Error exporting report:', error);
-      toast.error('Failed to export report');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Note: Export endpoints are not implemented on the server. Buttons removed for now.
 
   const handleDateRangeChange = (field, value) => {
     setDateRange(prev => ({ ...prev, [field]: value }));
@@ -438,12 +393,7 @@ const ReportsPage = () => {
                   </CardContent>
                 </Card>
               </div>
-              <div className="flex justify-end">
-                <Button onClick={() => exportReport('inventory-status', 'csv')} disabled={loading}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Inventory Report
-                </Button>
-              </div>
+              {/* Export button removed: server does not implement exports */}
             </CardContent>
           </Card>
         </TabsContent>
@@ -481,14 +431,7 @@ const ReportsPage = () => {
                         </div>
                       </div>
                     ))}
-                    <Button 
-                      onClick={() => exportReport('discount-approvals', 'csv')} 
-                      disabled={loading}
-                      className="w-full"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export Full Report
-                    </Button>
+                    {/* Export button removed */}
                   </div>
                 )}
               </CardContent>
@@ -527,14 +470,7 @@ const ReportsPage = () => {
                         </div>
                       </div>
                     ))}
-                    <Button 
-                      onClick={() => exportReport('casual-remuneration', 'csv')} 
-                      disabled={loading}
-                      className="w-full"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export Full Report
-                    </Button>
+                    {/* Export button removed */}
                   </div>
                 )}
               </CardContent>

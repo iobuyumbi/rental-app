@@ -31,6 +31,7 @@ const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Inventory", href: "/inventory", icon: Package },
   { name: "Orders", href: "/orders", icon: ShoppingCart },
+  { name: "Clients", href: "/clients", icon: User },
   { name: "Workers", href: "/workers", icon: Users },
   { name: "Task Management", href: "/task-management", icon: ClipboardList },
   { name: "Transactions", href: "/transactions", icon: Wrench },

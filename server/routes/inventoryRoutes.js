@@ -2,6 +2,7 @@ const express = require('express');
 const {
   getCategories,
   addCategory,
+  updateCategory,
   getProducts,
   getProduct,
   addProduct,
@@ -24,6 +25,7 @@ router.use(protect);
 router.use(adminOrAssistant);
 
 router.post('/categories', addCategory);
+router.put('/categories/:id', updateCategory);
 router.post('/products', addProduct);
 router.put('/products/:id', updateProduct);
 router.delete('/products/:id', deleteProduct);

@@ -76,7 +76,6 @@ const OrdersPage = () => {
   const fetchOrders = useCallback(() => ordersAPI.getOrders({}), []);
   const createOrderFn = useCallback((data) => ordersAPI.createOrder(data), []);
   const updateOrderFn = useCallback((id, data) => ordersAPI.updateOrder(id, data), []);
-  const deleteOrderFn = useCallback((id) => ordersAPI.deleteOrder(id), []);
 
   // Data management for orders
   const {
@@ -85,13 +84,11 @@ const OrdersPage = () => {
     error,
     createItem: createOrder,
     updateItem: updateOrder,
-    deleteItem: deleteOrder,
     refresh: loadOrders
   } = useDataManager({
     fetchFn: fetchOrders,
     createFn: createOrderFn,
     updateFn: updateOrderFn,
-    deleteFn: deleteOrderFn,
     entityName: 'order'
   });
 
@@ -140,16 +137,29 @@ const OrdersPage = () => {
 
   const loadSupportingData = async () => {
     try {
+      console.log('Loading clients and products for orders...');
       const [clientsRes, productsRes] = await Promise.all([
         ordersAPI.getClients(),
         inventoryAPI.products.get()
       ]);
       
-      setClients(clientsRes.data || []);
-      setProducts(productsRes || []);
+      console.log('Raw clients response:', clientsRes);
+      console.log('Raw products response:', productsRes);
+      
+      // Use consistent data extraction pattern
+      const clientsData = clientsRes?.data || clientsRes || [];
+      const productsData = productsRes?.data || productsRes || [];
+      
+      console.log('Extracted clients data:', clientsData);
+      console.log('Extracted products data:', productsData);
+      
+      setClients(Array.isArray(clientsData) ? clientsData : []);
+      setProducts(Array.isArray(productsData) ? productsData : []);
     } catch (error) {
       console.error('Error loading supporting data:', error);
       toast.error('Failed to load supporting data');
+      setClients([]);
+      setProducts([]);
     }
   };
 
@@ -202,11 +212,7 @@ const OrdersPage = () => {
     setShowAddOrder(true);
   };
 
-  const handleDeleteOrder = async (order) => {
-    if (window.confirm('Are you sure you want to delete this order?')) {
-      await deleteOrder(order._id);
-    }
-  };
+  // Deleting orders is not supported by the API at this time.
 
   // Product management functions
   const addItemToOrder = () => {
@@ -261,6 +267,9 @@ const OrdersPage = () => {
     value: client._id,
     label: client.name
   }));
+  
+  console.log('Clients state:', clients);
+  console.log('Client options for dropdown:', clientOptions);
 
   // Define table columns
   const orderColumns = [
@@ -358,7 +367,7 @@ const OrdersPage = () => {
         data={orders}
         onAdd={handleAddOrder}
         onEdit={handleEditOrder}
-        onDelete={handleDeleteOrder}
+        // onDelete not provided: delete is not supported by API
         addLabel="Create Order"
         searchable={true}
         searchPlaceholder="Search orders by client, order number..."
@@ -370,7 +379,7 @@ const OrdersPage = () => {
       {/* Order Form Modal */}
       <FormModal
         isOpen={showAddOrder}
-        onClose={handleCloseModal}
+        onOpenChange={(open) => !open && handleCloseModal()}
         title={editingOrder ? 'Edit Order' : 'Create New Order'}
         onSubmit={orderForm.handleSubmit}
         loading={orderForm.isSubmitting}
@@ -379,7 +388,7 @@ const OrdersPage = () => {
           label="Client"
           name="client"
           value={orderForm.values.client || ''}
-          onChange={orderForm.handleChange}
+          onChange={(e) => orderForm.handleChange('client', e.target.value)}
           error={orderForm.errors.client}
           required
           options={clientOptions}

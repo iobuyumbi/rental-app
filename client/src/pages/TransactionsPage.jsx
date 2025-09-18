@@ -13,9 +13,10 @@ import {
   AlertCircle, 
   Coffee,
   Users,
-  CheckCircle
+  CheckCircle,
+  Package
 } from 'lucide-react';
-import { transactionsAPI, inventoryAPI } from '../services/api';
+import { transactionsAPI, inventoryAPI, workersAPI, lunchAllowanceAPI } from '../services/api';
 import { toast } from 'sonner';
 import DataTable from '../components/common/DataTable';
 import FormModal, { FormInput, FormSelect, FormTextarea } from '../components/common/FormModal';
@@ -45,6 +46,8 @@ const TransactionsPage = () => {
   const [showAddPurchase, setShowAddPurchase] = useState(false);
   const [showAddRepair, setShowAddRepair] = useState(false);
   const [editingRepair, setEditingRepair] = useState(null);
+  const [showAddLunchAllowance, setShowAddLunchAllowance] = useState(false);
+  const [workers, setWorkers] = useState([]);
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -90,8 +93,10 @@ const TransactionsPage = () => {
   });
 
   // Data management for lunch allowances
+  const createLunchAllowanceFn = useCallback((data) => lunchAllowanceAPI.generate(data), []);
   const lunchAllowanceManager = useDataManager({
     fetchFn: fetchLunchAllowances,
+    createFn: createLunchAllowanceFn,
     entityName: 'lunch allowance'
   });
 
@@ -112,6 +117,7 @@ const TransactionsPage = () => {
   const {
     data: lunchAllowances,
     loading: lunchAllowanceLoading,
+    createItem: createLunchAllowance,
     refresh: loadLunchAllowances
   } = lunchAllowanceManager;
 
@@ -176,9 +182,36 @@ const TransactionsPage = () => {
     }
   });
 
+  // Form management for lunch allowances
+  const lunchAllowanceForm = useFormManager({
+    initialData: {
+      workerId: '',
+      amount: '',
+      date: new Date().toISOString().split('T')[0],
+      status: 'Pending',
+      notes: ''
+    },
+    validationRules: {
+      workerId: { required: true },
+      amount: { required: true, min: 0 },
+      date: { required: true },
+      status: { required: true }
+    },
+    onSubmit: async (formData) => {
+      const lunchAllowanceData = {
+        ...formData,
+        amount: parseFloat(formData.amount)
+      };
+      
+      await createLunchAllowance(lunchAllowanceData);
+      handleCloseLunchAllowanceModal();
+    }
+  });
+
   const loading = purchasesLoading || repairsLoading || lunchAllowanceLoading;
 
   useEffect(() => {
+    console.log('TransactionsPage useEffect running - loading supporting data...');
     loadSupportingData();
   }, []);
 
@@ -193,12 +226,29 @@ const TransactionsPage = () => {
 
   const loadSupportingData = async () => {
     try {
-      const productsRes = await inventoryAPI.products.get();
-      setProducts(productsRes.data || []);
+      console.log('Loading products and workers for transactions...');
+      const [productsRes, workersRes] = await Promise.all([
+        inventoryAPI.products.get(),
+        workersAPI.workers.get()
+      ]);
+      
+      console.log('Raw products response:', productsRes);
+      console.log('Raw workers response:', workersRes);
+      
+      // Use the same pattern as useDataManager
+      const productsData = productsRes?.data || productsRes || [];
+      const workersData = workersRes?.data || workersRes || [];
+      
+      console.log('Extracted products data:', productsData);
+      console.log('Extracted workers data:', workersData);
+      
+      setProducts(Array.isArray(productsData) ? productsData : []);
+      setWorkers(Array.isArray(workersData) ? workersData : []);
     } catch (error) {
-      console.error('Error loading products:', error);
-      toast.error('Failed to load products data');
+      console.error('Error loading supporting data:', error);
+      toast.error('Failed to load supporting data');
       setProducts([]);
+      setWorkers([]);
     }
   };
 
@@ -250,9 +300,13 @@ const TransactionsPage = () => {
 
   // Lunch allowance handlers
   const handleAddLunchAllowance = () => {
-    // This would open a modal to manually add lunch allowance
-    // For now, we'll show a toast indicating this is typically auto-generated
-    toast.info('Lunch allowances are automatically created when workers are marked present. Use the edit function to modify existing entries.');
+    lunchAllowanceForm.reset();
+    setShowAddLunchAllowance(true);
+  };
+
+  const handleCloseLunchAllowanceModal = () => {
+    setShowAddLunchAllowance(false);
+    lunchAllowanceForm.reset();
   };
 
   const handleEditLunchAllowance = async (allowance) => {
@@ -313,6 +367,24 @@ const TransactionsPage = () => {
     value: product._id,
     label: product.name
   }));
+
+  // Get worker options for lunch allowance forms
+  const workerOptions = workers.map(worker => ({
+    value: worker._id,
+    label: worker.name
+  }));
+
+  // Lunch allowance status options
+  const lunchAllowanceStatusOptions = [
+    { value: 'Pending', label: 'Pending' },
+    { value: 'Provided', label: 'Provided' },
+    { value: 'Cancelled', label: 'Cancelled' }
+  ];
+  
+  console.log('Products state:', products);
+  console.log('Product options for dropdown:', productOptions);
+  console.log('Workers state:', workers);
+  console.log('Worker options for dropdown:', workerOptions);
 
   // Define purchase table columns
   const purchaseColumns = [
@@ -793,7 +865,7 @@ const TransactionsPage = () => {
       {/* Purchase Form Modal */}
       <FormModal
         isOpen={showAddPurchase}
-        onClose={handleClosePurchaseModal}
+        onOpenChange={(open) => !open && handleClosePurchaseModal()}
         title="Record New Purchase"
         onSubmit={purchaseForm.handleSubmit}
         loading={purchaseForm.isSubmitting}
@@ -802,7 +874,7 @@ const TransactionsPage = () => {
           label="Product"
           name="productId"
           value={purchaseForm.values.productId || ''}
-          onChange={purchaseForm.handleChange}
+          onChange={(e) => purchaseForm.handleChange('productId', e.target.value)}
           error={purchaseForm.errors.productId}
           required
           options={productOptions}
@@ -815,11 +887,11 @@ const TransactionsPage = () => {
             name="quantity"
             type="number"
             value={purchaseForm.values.quantity || ''}
-            onChange={purchaseForm.handleChange}
+            onChange={(e) => purchaseForm.handleChange('quantity', e.target.value)}
             error={purchaseForm.errors.quantity}
             required
             min="1"
-            placeholder="0"
+            placeholder="1"
           />
           
           <FormInput
@@ -827,7 +899,7 @@ const TransactionsPage = () => {
             name="unitCost"
             type="number"
             value={purchaseForm.values.unitCost || ''}
-            onChange={purchaseForm.handleChange}
+            onChange={(e) => purchaseForm.handleChange('unitCost', e.target.value)}
             error={purchaseForm.errors.unitCost}
             required
             min="0"
@@ -840,7 +912,7 @@ const TransactionsPage = () => {
           label="Supplier"
           name="supplier"
           value={purchaseForm.values.supplier || ''}
-          onChange={purchaseForm.handleChange}
+          onChange={(e) => purchaseForm.handleChange('supplier', e.target.value)}
           error={purchaseForm.errors.supplier}
           required
           placeholder="Supplier name"
@@ -851,7 +923,7 @@ const TransactionsPage = () => {
           name="purchaseDate"
           type="date"
           value={purchaseForm.values.purchaseDate || ''}
-          onChange={purchaseForm.handleChange}
+          onChange={(e) => purchaseForm.handleChange('purchaseDate', e.target.value)}
           error={purchaseForm.errors.purchaseDate}
           required
         />
@@ -860,7 +932,7 @@ const TransactionsPage = () => {
           label="Description"
           name="description"
           value={purchaseForm.values.description || ''}
-          onChange={purchaseForm.handleChange}
+          onChange={(e) => purchaseForm.handleChange('description', e.target.value)}
           error={purchaseForm.errors.description}
           placeholder="Additional details about the purchase..."
           rows={3}
@@ -870,7 +942,7 @@ const TransactionsPage = () => {
       {/* Repair Form Modal */}
       <FormModal
         isOpen={showAddRepair}
-        onClose={handleCloseRepairModal}
+        onOpenChange={(open) => !open && handleCloseRepairModal()}
         title={editingRepair ? 'Edit Repair' : 'Record New Repair'}
         onSubmit={repairForm.handleSubmit}
         loading={repairForm.isSubmitting}
@@ -879,7 +951,7 @@ const TransactionsPage = () => {
           label="Product"
           name="productId"
           value={repairForm.values.productId || ''}
-          onChange={repairForm.handleChange}
+          onChange={(e) => repairForm.handleChange('productId', e.target.value)}
           error={repairForm.errors.productId}
           required
           options={productOptions}
@@ -890,7 +962,7 @@ const TransactionsPage = () => {
           label="Description"
           name="description"
           value={repairForm.values.description || ''}
-          onChange={repairForm.handleChange}
+          onChange={(e) => repairForm.handleChange('description', e.target.value)}
           error={repairForm.errors.description}
           required
           placeholder="Describe the repair work needed..."
@@ -903,7 +975,7 @@ const TransactionsPage = () => {
             name="cost"
             type="number"
             value={repairForm.values.cost || ''}
-            onChange={repairForm.handleChange}
+            onChange={(e) => repairForm.handleChange('cost', e.target.value)}
             error={repairForm.errors.cost}
             required
             min="0"
@@ -916,7 +988,7 @@ const TransactionsPage = () => {
             name="repairDate"
             type="date"
             value={repairForm.values.repairDate || ''}
-            onChange={repairForm.handleChange}
+            onChange={(e) => repairForm.handleChange('repairDate', e.target.value)}
             error={repairForm.errors.repairDate}
             required
           />
@@ -927,7 +999,7 @@ const TransactionsPage = () => {
             label="Status"
             name="status"
             value={repairForm.values.status || 'Pending'}
-            onChange={repairForm.handleChange}
+            onChange={(e) => repairForm.handleChange('status', e.target.value)}
             error={repairForm.errors.status}
             required
             options={repairStatusOptions}
@@ -937,11 +1009,76 @@ const TransactionsPage = () => {
             label="Technician"
             name="technician"
             value={repairForm.values.technician || ''}
-            onChange={repairForm.handleChange}
+            onChange={(e) => repairForm.handleChange('technician', e.target.value)}
             error={repairForm.errors.technician}
             placeholder="Technician name"
           />
         </div>
+      </FormModal>
+
+      {/* Lunch Allowance Form Modal */}
+      <FormModal
+        isOpen={showAddLunchAllowance}
+        onOpenChange={(open) => !open && handleCloseLunchAllowanceModal()}
+        title="Add Lunch Allowance"
+        onSubmit={lunchAllowanceForm.handleSubmit}
+        loading={lunchAllowanceForm.isSubmitting}
+      >
+        <FormSelect
+          label="Worker"
+          name="workerId"
+          value={lunchAllowanceForm.values.workerId || ''}
+          onChange={(e) => lunchAllowanceForm.handleChange('workerId', e.target.value)}
+          error={lunchAllowanceForm.errors.workerId}
+          required
+          options={workerOptions}
+          placeholder="Select worker"
+        />
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormInput
+            label="Amount (KES)"
+            name="amount"
+            type="number"
+            value={lunchAllowanceForm.values.amount || ''}
+            onChange={(e) => lunchAllowanceForm.handleChange('amount', e.target.value)}
+            error={lunchAllowanceForm.errors.amount}
+            required
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+          />
+          
+          <FormInput
+            label="Date"
+            name="date"
+            type="date"
+            value={lunchAllowanceForm.values.date || ''}
+            onChange={(e) => lunchAllowanceForm.handleChange('date', e.target.value)}
+            error={lunchAllowanceForm.errors.date}
+            required
+          />
+        </div>
+        
+        <FormSelect
+          label="Status"
+          name="status"
+          value={lunchAllowanceForm.values.status || 'Pending'}
+          onChange={(e) => lunchAllowanceForm.handleChange('status', e.target.value)}
+          error={lunchAllowanceForm.errors.status}
+          required
+          options={lunchAllowanceStatusOptions}
+        />
+        
+        <FormTextarea
+          label="Notes"
+          name="notes"
+          value={lunchAllowanceForm.values.notes || ''}
+          onChange={(e) => lunchAllowanceForm.handleChange('notes', e.target.value)}
+          error={lunchAllowanceForm.errors.notes}
+          placeholder="Additional notes about the lunch allowance..."
+          rows={3}
+        />
       </FormModal>
     </div>
   );

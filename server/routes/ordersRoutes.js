@@ -19,6 +19,12 @@ const router = express.Router();
 router.use(protect);
 router.use(adminOrAssistant);
 router.get('/', getOrders);
+
+// Violation routes (must come before /:id routes)
+router.get('/violations', getViolations);
+router.put('/violations/:id/resolve', resolveViolation);
+
+// Order-specific routes
 router.get('/:id', getOrder);
 router.post('/', createOrder);
 router.put('/:id', updateOrder);
@@ -28,9 +34,5 @@ router.put('/:id/payment', updatePayment);
 
 // Admin only routes
 router.put('/:id/discount/approve', admin, approveDiscount);
-
-// Violation routes
-router.get('/violations', getViolations);
-router.put('/violations/:id/resolve', resolveViolation);
 
 module.exports = router; 

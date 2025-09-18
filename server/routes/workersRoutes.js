@@ -17,9 +17,9 @@ router.use(protect);
 router.use(adminOrAssistant);
 
 // Worker management
-router.get('/workers', getWorkers);
-router.post('/workers', addWorker);
-router.put('/workers/:id', updateWorker);
+router.get('/', getWorkers);
+router.post('/', addWorker);
+router.put('/:id', updateWorker);
 
 // Attendance management
 router.post('/attendance', recordAttendance);
@@ -29,4 +29,4 @@ router.get('/attendance', getAttendance);
 router.get('/:id/remuneration', calculateRemuneration);
 router.get('/remuneration-summary', getRemunerationSummary);
 
-module.exports = router; 
+module.exports = router;

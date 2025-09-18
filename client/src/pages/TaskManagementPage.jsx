@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import DataTable from '../components/common/DataTable';
 import FormModal from '../components/common/FormModal';
 import { Badge } from '../components/ui/badge';
-import { Select } from '../components/ui/select';
+
 import { useDataManager } from '../hooks/useDataManager';
 import { useFormManager } from '../hooks/useFormManager';
 import { taskRateAPI, taskCompletionAPI, ordersAPI, workersAPI } from '../services/api';
@@ -21,7 +21,11 @@ const TaskManagementPage = () => {
 
   // Task Rates Management
   const ratesManager = useDataManager({
-    fetchFn: useCallback(() => taskRateAPI.getAll({ active: true }), []),
+    fetchFn: useCallback(async () => {
+      const result = await taskRateAPI.getAll({ active: 'true' });
+      // Return the actual data array from the nested structure
+      return result.data.data || [];
+    }, []),
     createFn: useCallback((data) => taskRateAPI.create(data), []),
     updateFn: useCallback((id, data) => taskRateAPI.update(id, data), []),
     deleteFn: useCallback((id) => taskRateAPI.delete(id), []),
@@ -71,7 +75,7 @@ const TaskManagementPage = () => {
     try {
       const [ordersRes, workersRes] = await Promise.all([
         ordersAPI.getAll(),
-        workersAPI.workers.getAll()
+        workersAPI.workers.get()
       ]);
       setOrders(ordersRes.data?.data || []);
       setWorkers(workersRes.data?.data || []);
@@ -184,7 +188,7 @@ const TaskManagementPage = () => {
     {
       key: 'ratePerUnit',
       label: 'Rate',
-      render: (value, row) => `KES ${value} ${row.unit}`
+      render: (value, row) => `KES ${value || 0} ${row?.unit || 'per unit'}`
     },
     { key: 'description', label: 'Description' },
     {
@@ -364,14 +368,27 @@ const TaskManagementPage = () => {
         onSubmit={editingRate ? handleUpdateRate : handleAddRate}
       >
         <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Task Type"
-            value={rateForm.values.taskType}
-            onChange={(value) => rateForm.updateValues({ taskType: value })}
-            options={taskTypes}
-            error={rateForm.errors.taskType}
-            required
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Task Type *
+            </label>
+            <select
+              value={rateForm.values.taskType}
+              onChange={(e) => rateForm.updateValues({ taskType: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select task type...</option>
+              {taskTypes.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+            {rateForm.errors.taskType && (
+              <p className="text-red-500 text-sm mt-1">{rateForm.errors.taskType}</p>
+            )}
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Task Name *
@@ -445,28 +462,48 @@ const TaskManagementPage = () => {
         onSubmit={handleRecordTask}
       >
         <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Task Rate"
-            value={taskForm.values.taskRateId}
-            onChange={(value) => taskForm.updateValues({ taskRateId: value })}
-            options={ratesManager.data.map(rate => ({
-              value: rate._id,
-              label: `${rate.taskName} (KES ${rate.ratePerUnit} ${rate.unit})`
-            }))}
-            error={taskForm.errors.taskRateId}
-            required
-          />
-          <Select
-            label="Order"
-            value={taskForm.values.orderId}
-            onChange={(value) => taskForm.updateValues({ orderId: value })}
-            options={orders.map(order => ({
-              value: order._id,
-              label: `${order.orderNumber} - ${order.clientName}`
-            }))}
-            error={taskForm.errors.orderId}
-            required
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Task Rate *
+            </label>
+            <select
+              value={taskForm.values.taskRateId}
+              onChange={(e) => taskForm.updateValues({ taskRateId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select task rate...</option>
+              {ratesManager.data.map(rate => (
+                <option key={rate._id} value={rate._id}>
+                  {rate.taskName} (KES {rate.ratePerUnit} {rate.unit})
+                </option>
+              ))}
+            </select>
+            {taskForm.errors.taskRateId && (
+              <p className="text-red-500 text-sm mt-1">{taskForm.errors.taskRateId}</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Order *
+            </label>
+            <select
+              value={taskForm.values.orderId}
+              onChange={(e) => taskForm.updateValues({ orderId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select order...</option>
+              {orders.map(order => (
+                <option key={order._id} value={order._id}>
+                  {order.orderNumber} - {order.clientName}
+                </option>
+              ))}
+            </select>
+            {taskForm.errors.orderId && (
+              <p className="text-red-500 text-sm mt-1">{taskForm.errors.orderId}</p>
+            )}
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Quantity Completed *
