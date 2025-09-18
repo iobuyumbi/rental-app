@@ -272,9 +272,15 @@ const getTransactionSummary = asyncHandler(async (req, res) => {
 // @route   GET /api/transactions/labor
 // @access  Private
 const getLaborCosts = asyncHandler(async (req, res) => {
-  const { startDate, endDate, taskType, status = 'verified' } = req.query;
+  const { startDate, endDate, worker } = req.query;
   
-  let query = { status };
+  let query = {
+    status: 'verified'
+  };
+  
+  if (worker) {
+    query.worker = worker;
+  }
   
   if (startDate && endDate) {
     query.completedDate = {
@@ -282,27 +288,19 @@ const getLaborCosts = asyncHandler(async (req, res) => {
       $lte: new Date(endDate)
     };
   }
-  
-  if (taskType) {
-    // Find task rates with matching task type
-    const taskRates = await require('../models/TaskRate').find({
-      taskType: { $regex: taskType, $options: 'i' }
-    });
-    if (taskRates.length > 0) {
-      query.taskRate = { $in: taskRates.map(tr => tr._id) };
-    }
-  }
 
-  const laborCosts = await TaskCompletion.find(query)
-    .populate('taskRate', 'taskName taskType ratePerUnit unit')
-    .populate('order', 'orderNumber clientName')
-    .populate('workersPresent', 'name')
+  const taskCompletions = await TaskCompletion.find(query)
+    .populate('worker', 'name')
+    .populate('taskRate', 'taskName ratePerUnit unit')
     .sort({ completedDate: -1 });
+  
+  const totalCost = taskCompletions.reduce((sum, task) => sum + task.totalPayment, 0);
   
   res.json({
     success: true,
-    count: laborCosts.length,
-    data: laborCosts
+    count: taskCompletions.length,
+    totalCost,
+    data: taskCompletions
   });
 });
 
@@ -310,29 +308,33 @@ const getLaborCosts = asyncHandler(async (req, res) => {
 // @route   GET /api/transactions/lunch-allowances
 // @access  Private
 const getLunchAllowanceCosts = asyncHandler(async (req, res) => {
-  const { startDate, endDate, status = 'Provided' } = req.query;
+  const { startDate, endDate, worker } = req.query;
   
-  let dateFilter = {};
+  let query = {
+    status: 'Provided'
+  };
+  
+  if (worker) {
+    query.worker = worker;
+  }
+  
   if (startDate && endDate) {
-    dateFilter = {
+    query.date = {
       $gte: new Date(startDate),
       $lte: new Date(endDate)
     };
   }
-  
-  const filter = {
-    ...(Object.keys(dateFilter).length && { date: dateFilter }),
-    status
-  };
-  
-  const lunchAllowances = await LunchAllowance.find(filter)
-    .populate('workerId', 'name phone')
-    .populate('attendanceId', 'hoursWorked taskDescription')
+
+  const lunchAllowances = await LunchAllowance.find(query)
+    .populate('worker', 'name')
     .sort({ date: -1 });
+  
+  const totalCost = lunchAllowances.reduce((sum, allowance) => sum + allowance.amount, 0);
   
   res.json({
     success: true,
     count: lunchAllowances.length,
+    totalCost,
     data: lunchAllowances
   });
 });
@@ -345,5 +347,5 @@ module.exports = {
   updateRepair,
   getTransactionSummary,
   getLaborCosts,
-  getLunchAllowanceCosts
+  getLunchAllowanceCosts,
 }; 

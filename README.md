@@ -157,19 +157,54 @@ The frontend will be available at `http://localhost:5173`
 - `DELETE /api/inventory/products/:id` - Delete product
 
 ### Orders
-- `GET /api/orders/clients` - Get clients
-- `POST /api/orders/clients` - Add client
 - `GET /api/orders` - Get orders with filters
+- `GET /api/orders/:id` - Get specific order
 - `POST /api/orders` - Create order
+- `PUT /api/orders/:id` - Update order
 - `PUT /api/orders/:id/return` - Mark order returned
 - `POST /api/orders/:id/discount/request` - Request discount
 - `PUT /api/orders/:id/discount/approve` - Approve discount (Admin only)
+- `PUT /api/orders/:id/payment` - Update payment
+- `GET /api/orders/violations` - Get violations
+- `PUT /api/orders/violations/:id/resolve` - Resolve violation
 
-### Casual Workers
-- `GET /api/casuals/workers` - Get workers
-- `POST /api/casuals/workers` - Add worker
-- `POST /api/casuals/attendance` - Record attendance
-- `GET /api/casuals/:id/remuneration` - Calculate remuneration
+### Workers
+- `GET /api/workers` - Get workers
+- `POST /api/workers` - Add worker
+- `PUT /api/workers/:id` - Update worker
+- `POST /api/workers/attendance` - Record attendance
+- `GET /api/workers/attendance` - Get attendance records
+- `GET /api/workers/:id/remuneration` - Calculate remuneration
+
+### Clients
+- `GET /api/clients` - Get clients
+- `POST /api/clients` - Add client
+
+### Transactions
+- `POST /api/transactions/purchases` - Record purchase
+- `GET /api/transactions/purchases` - Get purchases
+- `POST /api/transactions/repairs` - Record repair
+- `GET /api/transactions/repairs` - Get repairs
+- `PUT /api/transactions/repairs/:id` - Update repair
+- `GET /api/transactions/labor` - Get labor costs
+- `GET /api/transactions/lunch-allowances` - Get lunch allowance costs
+- `GET /api/transactions/summary` - Get transaction summary
+
+### Task Management
+- `GET /api/task-rates` - Get task rates
+- `POST /api/task-rates` - Create task rate
+- `PUT /api/task-rates/:id` - Update task rate
+- `DELETE /api/task-rates/:id` - Delete task rate
+- `GET /api/task-completions` - Get task completions
+- `POST /api/task-completions` - Record task completion
+- `PUT /api/task-completions/:id/verify` - Verify task completion
+
+### Lunch Allowances
+- `GET /api/lunch-allowances` - Get lunch allowances
+- `POST /api/lunch-allowances/generate` - Generate daily allowances
+- `PUT /api/lunch-allowances/:id` - Update lunch allowance
+- `DELETE /api/lunch-allowances/:id` - Delete lunch allowance
+- `GET /api/lunch-allowances/summary` - Get allowance summary
 
 ### Reports
 - `GET /api/reports/invoices/:orderId` - Generate invoice

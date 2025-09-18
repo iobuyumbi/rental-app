@@ -183,74 +183,6 @@ const calculateRemuneration = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get remuneration summary for all workers
-// @route   GET /api/workers/remuneration-summary
-// @access  Private
-const getRemunerationSummary = asyncHandler(async (req, res) => {
-  const { startDate, endDate } = req.query;
-  
-  if (!startDate || !endDate) {
-    res.status(400);
-    throw new Error('Start date and end date are required');
-  }
-  
-  const workers = await CasualWorker.find({ active: true });
-  const summary = [];
-  
-  for (const worker of workers) {
-    const attendance = await CasualAttendance.find({
-      casual: worker._id,
-      date: {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      }
-    });
-    
-    let totalRemuneration = 0;
-    let totalDays = 0;
-    let totalHours = 0;
-    
-    for (const record of attendance) {
-      totalDays++;
-      
-      if (record.hoursWorked) {
-        totalHours += record.hoursWorked;
-        totalRemuneration += record.hoursWorked * worker.ratePerHour;
-      } else {
-        totalRemuneration += worker.standardDailyRate;
-      }
-    }
-    
-    summary.push({
-      worker: {
-        _id: worker._id,
-        name: worker.name,
-        ratePerHour: worker.ratePerHour,
-        standardDailyRate: worker.standardDailyRate
-      },
-      summary: {
-        totalDays,
-        totalHours,
-        totalRemuneration
-      }
-    });
-  }
-  
-  const totalRemuneration = summary.reduce((sum, item) => sum + item.summary.totalRemuneration, 0);
-  
-  res.json({
-    success: true,
-    data: {
-      period: {
-        startDate,
-        endDate
-      },
-      totalRemuneration,
-      workers: summary
-    }
-  });
-});
-
 module.exports = {
   getWorkers,
   addWorker,
@@ -258,5 +190,4 @@ module.exports = {
   recordAttendance,
   getAttendance,
   calculateRemuneration,
-  getRemunerationSummary
 }; 

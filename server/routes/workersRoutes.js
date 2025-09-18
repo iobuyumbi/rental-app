@@ -6,7 +6,6 @@ const {
   recordAttendance,
   getAttendance,
   calculateRemuneration,
-  getRemunerationSummary
 } = require('../controllers/workerController');
 const { protect, adminOrAssistant } = require('../middleware/auth');
 
@@ -27,6 +26,4 @@ router.get('/attendance', getAttendance);
 
 // Remuneration
 router.get('/:id/remuneration', calculateRemuneration);
-router.get('/remuneration-summary', getRemunerationSummary);
-
 module.exports = router;

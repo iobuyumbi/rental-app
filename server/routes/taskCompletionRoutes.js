@@ -7,12 +7,13 @@ const {
   verifyTaskCompletion,
   getWorkerTaskSummary
 } = require('../controllers/taskCompletionController');
+const { protect, adminOrAssistant } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Apply auth middleware to all routes
-const { protect } = require('../middleware/auth');
+// All routes are protected
 router.use(protect);
+router.use(adminOrAssistant);
 
 router.route('/')
   .get(getTaskCompletions)
