@@ -50,11 +50,11 @@ pnpm run dev
 - `POST /api/orders/:id/discount/request` - Request discount
 - `PUT /api/orders/:id/discount/approve` - Approve discount (Admin only)
 
-### Casual Workers
-- `GET /api/casuals/workers` - Get all workers
-- `POST /api/casuals/workers` - Add new worker
-- `POST /api/casuals/attendance` - Record attendance
-- `GET /api/casuals/:id/remuneration` - Calculate remuneration
+### Workers
+- `GET /api/workers` - Get all workers
+- `POST /api/workers` - Add new worker
+- `POST /api/workers/attendance` - Record attendance
+- `GET /api/workers/:id/remuneration` - Calculate remuneration
 
 ### Transactions
 - `POST /api/transactions/purchases` - Record purchase

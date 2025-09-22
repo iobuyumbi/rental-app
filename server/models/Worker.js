@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const casualWorkerSchema = new mongoose.Schema({
+const workerSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Worker name is required'],
@@ -29,4 +29,4 @@ const casualWorkerSchema = new mongoose.Schema({
   timestamps: true
 });
 
-module.exports = mongoose.model('CasualWorker', casualWorkerSchema); 
+module.exports = mongoose.model('Worker', workerSchema);

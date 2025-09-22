@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
+import { ordersAPI } from '../../services/api';
+import { toast } from 'sonner';
 
 function ClientForm() {
   const [formData, setFormData] = useState({
@@ -14,6 +15,7 @@ function ClientForm() {
     notes: ''
   });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = Boolean(id);
@@ -22,11 +24,12 @@ function ClientForm() {
     if (isEditMode) {
       const fetchClient = async () => {
         try {
-          const res = await axios.get(`/api/clients/${id}`);
-          setFormData(res.data);
+          const client = await ordersAPI.getClient(id);
+          setFormData(client);
         } catch (err) {
           console.error('Error fetching client:', err);
           setError('Failed to load client');
+          toast.error('Failed to load client');
         }
       };
       fetchClient();
@@ -43,16 +46,34 @@ function ClientForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(''); // Clear any previous errors
+    setLoading(true);
+    
+    console.log('Form submitted with data:', formData);
+    console.log('Auth token exists:', !!localStorage.getItem('token'));
+    
     try {
       if (isEditMode) {
-        await axios.put(`/api/clients/${id}`, formData);
+        console.log('Updating client with ID:', id);
+        await ordersAPI.updateClient(id, formData);
+        toast.success('Client updated successfully');
       } else {
-        await axios.post('/api/clients', formData);
+        console.log('Creating new client...');
+        const result = await ordersAPI.addClient(formData);
+        console.log('Client creation result:', result);
+        toast.success('Client created successfully');
       }
       navigate('/clients');
     } catch (err) {
-      setError(err.response?.data?.message || 'Error saving client');
-      console.error('Error saving client:', err);
+      console.error('Full error object:', err);
+      console.error('Error response:', err.response);
+      console.error('Error request:', err.request);
+      
+      const errorMessage = err.response?.data?.message || err.message || 'Error saving client';
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -197,9 +218,14 @@ function ClientForm() {
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            disabled={loading}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={(e) => {
+              console.log('Save button clicked!', formData);
+              // The form submission will be handled by handleSubmit
+            }}
           >
-            Save
+            {loading ? 'Saving...' : (isEditMode ? 'Update Client' : 'Save New Client')}
           </button>
         </div>
       </form>

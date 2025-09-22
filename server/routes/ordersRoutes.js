@@ -9,7 +9,13 @@ const {
   approveDiscount,
   updatePayment,
   getViolations,
-  resolveViolation
+  getViolation,
+  createViolation,
+  updateViolation,
+  resolveViolation,
+  bulkResolveViolations,
+  deleteViolation,
+  exportViolations
 } = require('../controllers/orderController');
 const { protect, admin, adminOrAssistant } = require('../middleware/auth');
 
@@ -21,8 +27,14 @@ router.use(adminOrAssistant);
 router.get('/', getOrders);
 
 // Violation routes (must come before /:id routes)
+router.get('/violations/export', exportViolations);
 router.get('/violations', getViolations);
+router.post('/violations', createViolation);
+router.put('/violations/bulk-resolve', bulkResolveViolations);
+router.get('/violations/:id', getViolation);
+router.put('/violations/:id', updateViolation);
 router.put('/violations/:id/resolve', resolveViolation);
+router.delete('/violations/:id', deleteViolation);
 
 // Order-specific routes
 router.get('/:id', getOrder);

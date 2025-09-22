@@ -72,21 +72,66 @@ const getOrder = asyncHandler(async (req, res) => {
 // @route   POST /api/orders
 // @access  Private
 const createOrder = asyncHandler(async (req, res) => {
+  console.log('Creating order with data:', req.body);
+  
   const { client, rentalStartDate, rentalEndDate, items, notes } = req.body;
   
+  // Validate required fields
+  if (!client) {
+    res.status(400);
+    throw new Error('Client is required');
+  }
+  
+  if (!rentalStartDate) {
+    res.status(400);
+    throw new Error('Rental start date is required');
+  }
+  
+  if (!rentalEndDate) {
+    res.status(400);
+    throw new Error('Rental end date is required');
+  }
+  
+  if (!items || items.length === 0) {
+    res.status(400);
+    throw new Error('At least one item is required');
+  }
+  
+  // Validate dates
+  const startDate = new Date(rentalStartDate);
+  const endDate = new Date(rentalEndDate);
+  
+  if (isNaN(startDate.getTime())) {
+    res.status(400);
+    throw new Error('Invalid rental start date');
+  }
+  
+  if (isNaN(endDate.getTime())) {
+    res.status(400);
+    throw new Error('Invalid rental end date');
+  }
+  
+  if (startDate >= endDate) {
+    res.status(400);
+    throw new Error('Rental end date must be after start date');
+  }
+  
   // Calculate expected return date (3 days after rental end)
-  const expectedReturnDate = new Date(rentalEndDate);
+  const expectedReturnDate = new Date(endDate);
   expectedReturnDate.setDate(expectedReturnDate.getDate() + 3);
   
   // Calculate total amount
   let totalAmount = 0;
   for (const item of items) {
-    const product = await Product.findById(item.product);
+    const productId = item.productId || item.product;
+    const quantity = item.quantity || item.quantityRented || 1;
+    
+    const product = await Product.findById(productId);
     if (!product) {
       res.status(400);
-      throw new Error(`Product ${item.product} not found`);
+      throw new Error(`Product ${productId} not found`);
     }
-    totalAmount += product.rentalPrice * item.quantityRented;
+    totalAmount += product.rentalPrice * quantity;
   }
   
   // Create order
@@ -101,17 +146,20 @@ const createOrder = asyncHandler(async (req, res) => {
   
   // Create order items and update product quantities
   for (const item of items) {
-    const product = await Product.findById(item.product);
+    const productId = item.productId || item.product;
+    const quantity = item.quantity || item.quantityRented || 1;
+    
+    const product = await Product.findById(productId);
     
     await OrderItem.create({
       order: order._id,
-      product: item.product,
-      quantityRented: item.quantityRented,
+      product: productId,
+      quantityRented: quantity,
       unitPriceAtTimeOfRental: product.rentalPrice
     });
     
     // Update product rented quantity
-    product.quantityRented += item.quantityRented;
+    product.quantityRented += quantity;
     await product.save();
   }
   
@@ -314,6 +362,112 @@ const getViolations = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get single violation
+// @route   GET /api/orders/violations/:id
+// @access  Private
+const getViolation = asyncHandler(async (req, res) => {
+  const violation = await Violation.findById(req.params.id)
+    .populate('order', 'client orderDate expectedReturnDate actualReturnDate totalAmount status items')
+    .populate('resolvedBy', 'name')
+    .populate({
+      path: 'order',
+      populate: { 
+        path: 'client', 
+        select: 'name email phone address' 
+      }
+    })
+    .populate({
+      path: 'order',
+      populate: { 
+        path: 'items',
+        populate: { path: 'product', select: 'name' }
+      }
+    });
+  
+  if (!violation) {
+    res.status(404);
+    throw new Error('Violation not found');
+  }
+  
+  res.json({
+    success: true,
+    data: violation
+  });
+});
+
+// @desc    Create new violation
+// @route   POST /api/orders/violations
+// @access  Private
+const createViolation = asyncHandler(async (req, res) => {
+  const { orderId, violationType, description, penaltyAmount, dueDate, priority, notes, clientId } = req.body;
+  
+  // Verify order exists
+  const order = await Order.findById(orderId).populate('client');
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
+  }
+  
+  const violation = await Violation.create({
+    order: orderId,
+    violationType,
+    description,
+    penaltyAmount,
+    dueDate,
+    priority: priority || 'medium',
+    notes,
+    createdBy: req.user._id
+  });
+  
+  const populatedViolation = await Violation.findById(violation._id)
+    .populate('order', 'client orderDate expectedReturnDate totalAmount')
+    .populate('createdBy', 'name')
+    .populate({
+      path: 'order',
+      populate: { path: 'client', select: 'name email phone' }
+    });
+  
+  res.status(201).json({
+    success: true,
+    data: populatedViolation
+  });
+});
+
+// @desc    Update violation
+// @route   PUT /api/orders/violations/:id
+// @access  Private
+const updateViolation = asyncHandler(async (req, res) => {
+  const violation = await Violation.findById(req.params.id);
+  
+  if (!violation) {
+    res.status(404);
+    throw new Error('Violation not found');
+  }
+  
+  // Don't allow updating resolved violations
+  if (violation.resolved) {
+    res.status(400);
+    throw new Error('Cannot update resolved violation');
+  }
+  
+  const updatedViolation = await Violation.findByIdAndUpdate(
+    req.params.id,
+    { ...req.body, updatedBy: req.user._id },
+    { new: true, runValidators: true }
+  )
+    .populate('order', 'client orderDate expectedReturnDate totalAmount')
+    .populate('updatedBy', 'name')
+    .populate({
+      path: 'order',
+      populate: { path: 'client', select: 'name email phone' }
+    });
+  
+  res.json({
+    success: true,
+    data: updatedViolation
+  });
+});
+
 // @desc    Resolve violation
 // @route   PUT /api/orders/violations/:id/resolve
 // @access  Private
@@ -325,24 +479,144 @@ const resolveViolation = asyncHandler(async (req, res) => {
     throw new Error('Violation not found');
   }
   
+  const { 
+    paidAmount, 
+    waivedAmount, 
+    resolutionNotes, 
+    paymentMethod, 
+    receiptNumber 
+  } = req.body;
+  
   violation.resolved = true;
   violation.resolvedDate = new Date();
   violation.resolvedBy = req.user._id;
+  violation.paidAmount = paidAmount || 0;
+  violation.waivedAmount = waivedAmount || 0;
+  violation.resolutionNotes = resolutionNotes;
+  violation.paymentMethod = paymentMethod;
+  violation.receiptNumber = receiptNumber;
   
   await violation.save();
   
   const populatedViolation = await Violation.findById(violation._id)
-    .populate('order', 'client orderDate')
+    .populate('order', 'client orderDate expectedReturnDate totalAmount')
     .populate('resolvedBy', 'name')
     .populate({
       path: 'order',
-      populate: { path: 'client', select: 'name' }
+      populate: { path: 'client', select: 'name email phone' }
     });
   
   res.json({
     success: true,
     data: populatedViolation
   });
+});
+
+// @desc    Bulk resolve violations
+// @route   PUT /api/orders/violations/bulk-resolve
+// @access  Private
+const bulkResolveViolations = asyncHandler(async (req, res) => {
+  const { violationIds, resolutionNotes } = req.body;
+  
+  if (!violationIds || !Array.isArray(violationIds) || violationIds.length === 0) {
+    res.status(400);
+    throw new Error('Violation IDs are required');
+  }
+  
+  const violations = await Violation.find({ _id: { $in: violationIds }, resolved: false });
+  
+  if (violations.length === 0) {
+    res.status(404);
+    throw new Error('No unresolved violations found');
+  }
+  
+  // Update all violations
+  await Violation.updateMany(
+    { _id: { $in: violationIds }, resolved: false },
+    {
+      resolved: true,
+      resolvedDate: new Date(),
+      resolvedBy: req.user._id,
+      resolutionNotes: resolutionNotes || 'Bulk resolution'
+    }
+  );
+  
+  const updatedViolations = await Violation.find({ _id: { $in: violationIds } })
+    .populate('order', 'client orderDate')
+    .populate('resolvedBy', 'name')
+    .populate({
+      path: 'order',
+      populate: { path: 'client', select: 'name email phone' }
+    });
+  
+  res.json({
+    success: true,
+    count: updatedViolations.length,
+    data: updatedViolations
+  });
+});
+
+// @desc    Delete violation
+// @route   DELETE /api/orders/violations/:id
+// @access  Private
+const deleteViolation = asyncHandler(async (req, res) => {
+  const violation = await Violation.findById(req.params.id);
+  
+  if (!violation) {
+    res.status(404);
+    throw new Error('Violation not found');
+  }
+  
+  // Don't allow deleting resolved violations
+  if (violation.resolved) {
+    res.status(400);
+    throw new Error('Cannot delete resolved violation');
+  }
+  
+  await violation.deleteOne();
+  
+  res.json({
+    success: true,
+    message: 'Violation deleted successfully'
+  });
+});
+
+// @desc    Export violations
+// @route   GET /api/orders/violations/export
+// @access  Private
+const exportViolations = asyncHandler(async (req, res) => {
+  const violations = await Violation.find({})
+    .populate('order', 'client orderDate expectedReturnDate totalAmount')
+    .populate('resolvedBy', 'name')
+    .populate({
+      path: 'order',
+      populate: { path: 'client', select: 'name email phone' }
+    });
+  
+  // Create CSV content
+  const csvHeader = 'Order ID,Client Name,Violation Type,Description,Penalty Amount,Status,Created Date,Resolved Date,Resolved By\n';
+  const csvRows = violations.map(violation => {
+    const order = violation.order;
+    const client = order?.client;
+    
+    return [
+      order?._id?.toString().slice(-8) || 'N/A',
+      client?.name || 'Unknown',
+      violation.violationType || '',
+      `"${violation.description?.replace(/"/g, '""') || ''}"`,
+      violation.penaltyAmount || 0,
+      violation.resolved ? 'Resolved' : 'Pending',
+      new Date(violation.createdAt).toLocaleDateString(),
+      violation.resolvedDate ? new Date(violation.resolvedDate).toLocaleDateString() : '',
+      violation.resolvedBy?.name || ''
+    ].join(',');
+  }).join('\n');
+  
+  const csvContent = csvHeader + csvRows;
+  
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename=violations-${new Date().toISOString().split('T')[0]}.csv`);
+  res.send(csvContent);
 });
 
 module.exports = {
@@ -355,5 +629,11 @@ module.exports = {
   approveDiscount,
   updatePayment,
   getViolations,
-  resolveViolation
+  getViolation,
+  createViolation,
+  updateViolation,
+  resolveViolation,
+  bulkResolveViolations,
+  deleteViolation,
+  exportViolations
 }; 

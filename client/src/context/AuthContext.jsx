@@ -59,7 +59,18 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
 
       const response = await authAPI.login(credentials);
-      const { token, ...userData } = response.data;
+      console.log('Login response:', response);
+      
+      // Handle server response format: {success: true, data: {token, ...userData}}
+      let token, userData;
+      if (response.token) {
+        // Direct format: {token: "...", ...userData}
+        token = response.token;
+        userData = { ...response };
+        delete userData.token; // Remove token from user data
+      } else {
+        throw new Error('Invalid response format - no token found');
+      }
 
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(userData));

@@ -3,8 +3,8 @@ const Order = require('../models/Order');
 const OrderItem = require('../models/OrderItem');
 const Product = require('../models/Product');
 const Violation = require('../models/Violation');
-const CasualWorker = require('../models/Worker');
-const CasualAttendance = require('../models/WorkersAttendance');
+const Worker = require('../models/Worker');
+const WorkerAttendance = require('../models/WorkersAttendance');
 
 // @desc    Generate invoice data for an order
 // @route   GET /api/reports/invoices/:orderId
@@ -140,12 +140,12 @@ const getWorkerRemunerationSummary = asyncHandler(async (req, res) => {
     throw new Error('Start date and end date are required');
   }
   
-  const workers = await CasualWorker.find({ active: true });
+  const workers = await Worker.find({ active: true });
   const summary = [];
   
   for (const worker of workers) {
-    const attendance = await CasualAttendance.find({
-      casual: worker._id,
+    const attendance = await WorkerAttendance.find({
+      worker: worker._id,
       date: {
         $gte: new Date(startDate),
         $lte: new Date(endDate)

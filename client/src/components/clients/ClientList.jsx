@@ -32,9 +32,10 @@ const ClientList = () => {
   });
 
   // Form management for client creation/editing
-  const clientForm = useFormManager({
-    initialData: {
+  const clientForm = useFormManager(
+    {
       name: '',
+      contactPerson: '',
       email: '',
       phone: '',
       type: 'direct',
@@ -42,22 +43,35 @@ const ClientList = () => {
       address: '',
       notes: ''
     },
-    validationRules: {
+    {
       name: { required: true },
+      contactPerson: { required: true },
       email: { required: true, email: true },
       phone: { required: true },
+      address: { required: true },
       type: { required: true },
       status: { required: true }
     },
-    onSubmit: async (formData) => {
-      if (editingClient) {
-        await updateClient(editingClient._id, formData);
-      } else {
-        await createClient(formData);
+    async (formData) => {
+      console.log('ClientList form submitted with data:', formData);
+      console.log('Is editing mode:', !!editingClient);
+      
+      try {
+        if (editingClient) {
+          console.log('Updating client with ID:', editingClient._id);
+          await updateClient(editingClient._id, formData);
+        } else {
+          console.log('Creating new client with data:', formData);
+          const result = await createClient(formData);
+          console.log('Client creation result:', result);
+        }
+        handleCloseModal();
+      } catch (error) {
+        console.error('Error in ClientList form submission:', error);
+        throw error; // Re-throw so the form manager can handle it
       }
-      handleCloseModal();
     }
-  });
+  );
 
   // Filter clients by type
   const filteredClients = clients.filter(client => 
@@ -67,8 +81,12 @@ const ClientList = () => {
   // Define table columns
   const columns = [
     {
-      header: 'Name',
+      header: 'Company/Organization',
       accessor: 'name'
+    },
+    {
+      header: 'Contact Person',
+      accessor: 'contactPerson'
     },
     {
       header: 'Email',
@@ -113,8 +131,9 @@ const ClientList = () => {
 
   const handleEdit = (client) => {
     setEditingClient(client);
-    clientForm.setFormData({
+    clientForm.updateValues({
       name: client.name || '',
+      contactPerson: client.contactPerson || '',
       email: client.email || '',
       phone: client.phone || '',
       type: client.type || 'direct',
@@ -126,9 +145,11 @@ const ClientList = () => {
   };
 
   const handleAddClient = () => {
+    console.log('Add Client button clicked');
     setEditingClient(null);
     clientForm.reset();
     setShowAddClient(true);
+    console.log('Modal should be open now, showAddClient:', true);
   };
 
   const handleCloseModal = () => {
@@ -202,51 +223,75 @@ const ClientList = () => {
       >
         <div className="grid grid-cols-2 gap-4">
           <FormInput
-            label="Full Name"
+            label="Company/Organization Name"
             name="name"
             value={clientForm.values.name || ''}
-            onChange={(e) => clientForm.handleChange('name', e.target.value)}
+            onChange={(e) => clientForm.setValue('name', e.target.value)}
             error={clientForm.errors.name}
             required
-            placeholder="Enter client's full name"
+            placeholder="Enter company or organization name"
           />
           
           <FormInput
-            label="Email"
-            name="email"
-            type="email"
-            value={clientForm.values.email || ''}
-            onChange={(e) => clientForm.handleChange('email', e.target.value)}
-            error={clientForm.errors.email}
+            label="Contact Person"
+            name="contactPerson"
+            value={clientForm.values.contactPerson || ''}
+            onChange={(e) => clientForm.setValue('contactPerson', e.target.value)}
+            error={clientForm.errors.contactPerson}
             required
-            placeholder="client@example.com"
+            placeholder="Enter contact person's name"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <FormInput
+            label="Email"
+            name="email"
+            type="email"
+            value={clientForm.values.email || ''}
+            onChange={(e) => clientForm.setValue('email', e.target.value)}
+            error={clientForm.errors.email}
+            required
+            placeholder="client@example.com"
+          />
+          
+          <FormInput
             label="Phone"
             name="phone"
             type="tel"
             value={clientForm.values.phone || ''}
-            onChange={(e) => clientForm.handleChange('phone', e.target.value)}
+            onChange={(e) => clientForm.setValue('phone', e.target.value)}
             error={clientForm.errors.phone}
             required
             placeholder="+254 700 000 000"
           />
-          
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <FormSelect
             label="Client Type"
             name="type"
             value={clientForm.values.type || 'direct'}
-            onChange={(e) => clientForm.handleChange('type', e.target.value)}
+            onChange={(e) => clientForm.setValue('type', e.target.value)}
             error={clientForm.errors.type}
             required
             options={[
               { value: 'direct', label: 'Direct Client' },
-              { value: 'vendor', label: 'Vendor' },
-              { value: 'corporate', label: 'Corporate' },
-              { value: 'individual', label: 'Individual' }
+              { value: 'vendor', label: 'Vendor' }
+            ]}
+          />
+          
+          <FormSelect
+            label="Status"
+            name="status"
+            value={clientForm.values.status || 'active'}
+            onChange={(e) => clientForm.setValue('status', e.target.value)}
+            error={clientForm.errors.status}
+            required
+            options={[
+              { value: 'active', label: 'Active' },
+              { value: 'inactive', label: 'Inactive' },
+              { value: 'blacklisted', label: 'Blacklisted' }
             ]}
           />
         </div>
@@ -255,32 +300,18 @@ const ClientList = () => {
           label="Address"
           name="address"
           value={clientForm.values.address || ''}
-          onChange={(e) => clientForm.handleChange('address', e.target.value)}
+          onChange={(e) => clientForm.setValue('address', e.target.value)}
           error={clientForm.errors.address}
+          required
           placeholder="Client's address"
         />
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormSelect
-            label="Status"
-            name="status"
-            value={clientForm.values.status || 'active'}
-            onChange={(e) => clientForm.handleChange('status', e.target.value)}
-            error={clientForm.errors.status}
-            required
-            options={[
-              { value: 'active', label: 'Active' },
-              { value: 'inactive', label: 'Inactive' },
-              { value: 'suspended', label: 'Suspended' }
-            ]}
-          />
-        </div>
 
         <FormTextarea
           label="Notes"
           name="notes"
           value={clientForm.values.notes || ''}
-          onChange={(e) => clientForm.handleChange('notes', e.target.value)}
+          onChange={(e) => clientForm.setValue('notes', e.target.value)}
           error={clientForm.errors.notes}
           placeholder="Additional notes about the client..."
           rows={3}

@@ -124,8 +124,8 @@ The frontend will be available at `http://localhost:5173`
 - **Order**: Rental orders with payment tracking
 - **OrderItem**: Individual items within orders
 - **Violation**: Order violations and penalties
-- **CasualWorker**: Worker information and rates
-- **CasualAttendance**: Daily attendance and activities
+- **Worker**: Worker information and rates
+- **WorkerAttendance**: Daily attendance and activities
 - **Purchase**: Inventory purchases
 - **Repair**: Item repairs and maintenance
 

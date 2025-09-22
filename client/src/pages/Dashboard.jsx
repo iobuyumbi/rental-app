@@ -73,11 +73,11 @@ const Dashboard = () => {
       
       const [inventoryResponse, ordersResponse, workersResponse, overdueResponse] = await Promise.allSettled(promises);
       
-      // Extract data safely with fallbacks
-      const inventoryData = inventoryResponse.status === 'fulfilled' ? inventoryResponse.value.data : { totalProducts: 0 };
-      const ordersData = ordersResponse.status === 'fulfilled' ? (ordersResponse.value.data.data || ordersResponse.value.data || []) : [];
-      const workersData = workersResponse.status === 'fulfilled' ? (workersResponse.value.data || []) : [];
-      const overdueData = overdueResponse.status === 'fulfilled' ? (overdueResponse.value.data || []) : [];
+      // Extract data safely with fallbacks (handleResponse now extracts data automatically)
+      const inventoryData = inventoryResponse.status === 'fulfilled' ? (inventoryResponse.value || { totalProducts: 0 }) : { totalProducts: 0 };
+      const ordersData = ordersResponse.status === 'fulfilled' ? (ordersResponse.value || []) : [];
+      const workersData = workersResponse.status === 'fulfilled' ? (workersResponse.value || []) : [];
+      const overdueData = overdueResponse.status === 'fulfilled' ? (overdueResponse.value || []) : [];
       
       // Calculate revenue safely
       const totalRevenue = Array.isArray(ordersData) ? ordersData.reduce((sum, order) => {
@@ -129,7 +129,7 @@ const Dashboard = () => {
     },
     {
       title: 'Record Attendance',
-      description: 'Record casual worker attendance',
+      description: 'Record worker attendance',
       icon: Users,
       href: '/workers',
       color: 'bg-purple-500'
@@ -207,7 +207,7 @@ const Dashboard = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Casual Workers</CardTitle>
+            <CardTitle className="text-sm font-medium">Workers</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>

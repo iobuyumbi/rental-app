@@ -1,7 +1,7 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const LunchAllowance = require('../models/LunchAllowance');
-const CasualAttendance = require('../models/WorkersAttendance');
-const CasualWorker = require('../models/Worker');
+const WorkerAttendance = require('../models/WorkersAttendance');
+const Worker = require('../models/Worker');
 
 // @desc    Get all lunch allowances
 // @route   GET /api/lunch-allowances
@@ -50,15 +50,21 @@ const generateDailyLunchAllowances = asyncHandler(async (req, res) => {
     throw new Error('Date is required');
   }
   
-  const targetDate = new Date(date);
-  const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0));
-  const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999));
+  const attendance = await WorkerAttendance.findOne({
+    worker: workerId,
+    date: {
+      $gte: new Date(date).setHours(0, 0, 0, 0),
+      $lt: new Date(date).setHours(23, 59, 59, 999)
+    }
+  });
   
   // Find all present workers for the date
-  const presentWorkers = await CasualAttendance.find({
-    date: { $gte: startOfDay, $lte: endOfDay },
-    status: 'Present'
-  }).populate('workerId');
+  const presentWorkers = await WorkerAttendance.find({
+    date: {
+      $gte: new Date(date).setHours(0, 0, 0, 0),
+      $lt: new Date(date).setHours(23, 59, 59, 999)
+    }
+  }).distinct('worker');
   
   if (presentWorkers.length === 0) {
     return res.json({
@@ -70,18 +76,26 @@ const generateDailyLunchAllowances = asyncHandler(async (req, res) => {
   
   const allowances = [];
   
-  for (const attendance of presentWorkers) {
+  for (const worker of presentWorkers) {
     // Check if lunch allowance already exists
     const existingAllowance = await LunchAllowance.findOne({
-      workerId: attendance.workerId._id,
-      date: startOfDay
+      workerId: worker,
+      date: new Date(date).setHours(0, 0, 0, 0)
     });
     
     if (!existingAllowance) {
+      const attendance = await WorkerAttendance.findOne({
+        worker: worker,
+        date: {
+          $gte: new Date(date).setHours(0, 0, 0, 0),
+          $lt: new Date(date).setHours(23, 59, 59, 999)
+        }
+      });
+      
       const allowance = await LunchAllowance.create({
-        workerId: attendance.workerId._id,
+        workerId: worker,
         attendanceId: attendance._id,
-        date: startOfDay,
+        date: new Date(date).setHours(0, 0, 0, 0),
         amount: Math.max(amount, 100) // Ensure minimum 100
       });
       

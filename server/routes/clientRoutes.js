@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const {
   getClients,
-  createClient
+  getClient,
+  createClient,
+  updateClient
 } = require('../controllers/clientController');
 const { protect, adminOrAssistant } = require('../middleware/auth');
 
@@ -13,5 +15,9 @@ router.use(adminOrAssistant);
 router.route('/')
   .get(getClients)
   .post(createClient);
+
+router.route('/:id')
+  .get(getClient)
+  .put(updateClient);
 
 module.exports = router;

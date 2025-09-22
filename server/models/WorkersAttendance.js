@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
 
-const casualAttendanceSchema = new mongoose.Schema({
-  casual: {
+const workerAttendanceSchema = new mongoose.Schema({
+  worker: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'CasualWorker',
-    required: [true, 'Casual worker is required']
+    ref: 'Worker',
+    required: [true, 'Worker is required']
   },
   date: {
     type: Date,
@@ -32,6 +32,6 @@ const casualAttendanceSchema = new mongoose.Schema({
 });
 
 // Ensure unique attendance per worker per day
-casualAttendanceSchema.index({ casual: 1, date: 1 }, { unique: true });
+workerAttendanceSchema.index({ worker: 1, date: 1 }, { unique: true });
 
-module.exports = mongoose.model('CasualAttendance', casualAttendanceSchema); 
+module.exports = mongoose.model('WorkerAttendance', workerAttendanceSchema);

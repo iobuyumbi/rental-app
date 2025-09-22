@@ -1,163 +1,249 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import DataTable from '../components/common/DataTable';
-import { AlertTriangle, CheckCircle, Clock, DollarSign } from 'lucide-react';
-import { ordersAPI } from '@/services/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Button } from '../components/ui/button';
+import { Plus, Download, FileText } from 'lucide-react';
+import { ordersAPI } from '../services/api';
 import { toast } from 'sonner';
+import useDataManager from '../hooks/useDataManager';
 
+// Import our new components
+import ViolationStatsCards from '../components/violations/ViolationStatsCards';
+import ViolationFilters from '../components/violations/ViolationFilters';
+import ViolationTable from '../components/violations/ViolationTable';
+import ViolationForm from '../components/violations/ViolationForm';
+import ViolationDetailsModal from '../components/violations/ViolationDetailsModal';
+import ResolveViolationDialog from '../components/violations/ResolveViolationDialog';
 
 const ViolationsPage = () => {
-  const [violations, setViolations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    total: 0,
-    resolved: 0,
-    pending: 0,
-    totalPenalties: 0
+  // State management
+  const [filters, setFilters] = useState({
+    search: '',
+    type: 'all',
+    status: 'all',
+    penaltyRange: 'all',
+    dateFrom: null,
+    dateTo: null,
+    clientId: 'all'
   });
 
-  useEffect(() => {
-    loadViolations();
-  }, []);
+  const [selectedViolations, setSelectedViolations] = useState([]);
+  const [showViolationForm, setShowViolationForm] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showResolveDialog, setShowResolveDialog] = useState(false);
+  const [editingViolation, setEditingViolation] = useState(null);
+  const [selectedViolation, setSelectedViolation] = useState(null);
+  const [isBulkResolve, setIsBulkResolve] = useState(false);
 
-  const loadViolations = async () => {
-    try {
-      setLoading(true);
-      const response = await ordersAPI.getViolations();
-      const violationsData = Array.isArray(response) ? response : response.data || [];
-      setViolations(violationsData);
-      
-      // Calculate stats
-      const total = violationsData.length;
-      const resolved = violationsData.filter(v => v.resolved).length;
-      const pending = total - resolved;
-      const totalPenalties = violationsData.reduce((sum, v) => sum + (v.penaltyAmount || 0), 0);
-      
-      setStats({ total, resolved, pending, totalPenalties });
-    } catch (error) {
-      console.error('Error loading violations:', error);
-      toast.error('Failed to load violations');
-      setViolations([]);
-    } finally {
-      setLoading(false);
-    }
+  // Use the data manager hook for violations
+  const {
+    data: violations,
+    loading,
+    error,
+    createItem: createViolation,
+    updateItem: updateViolation,
+    deleteItem: deleteViolation,
+    refresh: refreshViolations
+  } = useDataManager({
+    fetchFn: () => ordersAPI.getViolations(filters),
+    createFn: ordersAPI.createViolation,
+    updateFn: ordersAPI.updateViolation,
+    deleteFn: ordersAPI.deleteViolation,
+    entityName: 'violation',
+    autoLoad: true
+  });
+
+  // Calculate statistics
+  const stats = React.useMemo(() => {
+    const total = violations.length;
+    const resolved = violations.filter(v => v.resolved).length;
+    const pending = total - resolved;
+    const totalPenalties = violations.reduce((sum, v) => sum + (v.penaltyAmount || 0), 0);
+    const paidAmount = violations.reduce((sum, v) => sum + (v.paidAmount || 0), 0);
+    
+    return {
+      total,
+      resolved,
+      pending,
+      totalPenalties,
+      paidAmount,
+      outstanding: totalPenalties - paidAmount
+    };
+  }, [violations]);
+
+  // Filter violations based on current filters
+  const filteredViolations = React.useMemo(() => {
+    return violations.filter(violation => {
+      // Search filter
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        const matchesSearch = 
+          violation.description?.toLowerCase().includes(searchLower) ||
+          violation.violationType?.toLowerCase().includes(searchLower) ||
+          violation.order?.client?.name?.toLowerCase().includes(searchLower) ||
+          violation.order?._id?.toLowerCase().includes(searchLower);
+        
+        if (!matchesSearch) return false;
+      }
+
+      // Type filter
+      if (filters.type !== 'all' && violation.violationType !== filters.type) {
+        return false;
+      }
+
+      // Status filter
+      if (filters.status !== 'all') {
+        const isResolved = violation.resolved;
+        if (filters.status === 'resolved' && !isResolved) return false;
+        if (filters.status === 'pending' && isResolved) return false;
+      }
+
+      // Penalty range filter
+      if (filters.penaltyRange !== 'all') {
+        const amount = violation.penaltyAmount || 0;
+        switch (filters.penaltyRange) {
+          case '0-1000':
+            if (amount > 1000) return false;
+            break;
+          case '1000-5000':
+            if (amount < 1000 || amount > 5000) return false;
+            break;
+          case '5000-10000':
+            if (amount < 5000 || amount > 10000) return false;
+            break;
+          case '10000+':
+            if (amount < 10000) return false;
+            break;
+        }
+      }
+
+      // Date range filter
+      if (filters.dateFrom || filters.dateTo) {
+        const violationDate = new Date(violation.createdAt);
+        if (filters.dateFrom && violationDate < new Date(filters.dateFrom)) return false;
+        if (filters.dateTo && violationDate > new Date(filters.dateTo)) return false;
+      }
+
+      return true;
+    });
+  }, [violations, filters]);
+
+  // Handlers
+  const handleAddViolation = () => {
+    setEditingViolation(null);
+    setShowViolationForm(true);
   };
 
-  const handleResolveViolation = async (violation) => {
-    if (window.confirm(`Are you sure you want to resolve this violation? Penalty: KES ${violation.penaltyAmount?.toLocaleString()}`)) {
+  const handleEditViolation = (violation) => {
+    setEditingViolation(violation);
+    setShowViolationForm(true);
+  };
+
+  const handleViewViolation = (violation) => {
+    setSelectedViolation(violation);
+    setShowDetailsModal(true);
+  };
+
+  const handleResolveViolation = (violation) => {
+    setSelectedViolation(violation);
+    setIsBulkResolve(false);
+    setShowResolveDialog(true);
+  };
+
+  const handleBulkResolve = (violationIds) => {
+    setSelectedViolations(violationIds);
+    setIsBulkResolve(true);
+    setShowResolveDialog(true);
+  };
+
+  const handleDeleteViolation = async (violation) => {
+    if (window.confirm(`Are you sure you want to delete this ${violation.violationType} violation?`)) {
       try {
-        await ordersAPI.resolveViolation(violation._id);
-        toast.success('Violation resolved successfully');
-        loadViolations();
+        await deleteViolation(violation._id);
+        toast.success('Violation deleted successfully');
       } catch (error) {
-        console.error('Error resolving violation:', error);
-        toast.error('Failed to resolve violation');
+        toast.error('Failed to delete violation');
       }
     }
   };
 
-  const getViolationTypeColor = (type) => {
-    switch (type) {
-      case 'Overdue Return':
-        return 'bg-red-100 text-red-800';
-      case 'Damaged Item':
-        return 'bg-orange-100 text-orange-800';
-      case 'Missing Item':
-        return 'bg-purple-100 text-purple-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const handleViolationSubmit = async (violationData) => {
+    try {
+      if (editingViolation) {
+        await updateViolation(editingViolation._id, violationData);
+        toast.success('Violation updated successfully');
+      } else {
+        await createViolation(violationData);
+        toast.success('Violation created successfully');
+      }
+      setShowViolationForm(false);
+      setEditingViolation(null);
+    } catch (error) {
+      toast.error(editingViolation ? 'Failed to update violation' : 'Failed to create violation');
     }
   };
 
-  const violationColumns = [
-    {
-      header: 'Order',
-      accessor: 'order',
-      render: (order) => (
-        <div>
-          <div className="font-medium">#{order?._id?.slice(-8) || 'N/A'}</div>
-          <div className="text-sm text-gray-500">
-            {order?.client?.name || 'Unknown Client'}
-          </div>
-        </div>
-      )
-    },
-    {
-      header: 'Type',
-      accessor: 'violationType',
-      render: (type) => (
-        <Badge className={getViolationTypeColor(type)}>
-          {type}
-        </Badge>
-      )
-    },
-    {
-      header: 'Description',
-      accessor: 'description'
-    },
-    {
-      header: 'Penalty Amount',
-      accessor: 'penaltyAmount',
-      render: (amount) => (
-        <div className="font-medium text-red-600">
-          KES {amount?.toLocaleString() || '0'}
-        </div>
-      )
-    },
-    {
-      header: 'Status',
-      accessor: 'resolved',
-      render: (resolved, violation) => (
-        <div className="flex items-center gap-2">
-          {resolved ? (
-            <>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-green-600">Resolved</span>
-              {violation.resolvedDate && (
-                <div className="text-xs text-gray-500">
-                  {new Date(violation.resolvedDate).toLocaleDateString()}
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <Clock className="h-4 w-4 text-orange-600" />
-              <span className="text-orange-600">Pending</span>
-            </>
-          )}
-        </div>
-      )
-    },
-    {
-      header: 'Date Created',
-      accessor: 'createdAt',
-      render: (date) => new Date(date).toLocaleDateString()
-    },
-    {
-      header: 'Actions',
-      accessor: '_id',
-      render: (id, violation) => (
-        !violation.resolved && (
-          <Button
-            size="sm"
-            onClick={() => handleResolveViolation(violation)}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            Resolve
-          </Button>
-        )
-      )
+  const handleResolveSubmit = async (resolutionData) => {
+    try {
+      if (isBulkResolve) {
+        await ordersAPI.bulkResolveViolations(selectedViolations, resolutionData);
+        toast.success(`${selectedViolations.length} violations resolved successfully`);
+        setSelectedViolations([]);
+      } else {
+        await ordersAPI.resolveViolation(selectedViolation._id, resolutionData);
+        toast.success('Violation resolved successfully');
+      }
+      setShowResolveDialog(false);
+      setSelectedViolation(null);
+      setIsBulkResolve(false);
+      refreshViolations();
+    } catch (error) {
+      toast.error('Failed to resolve violation(s)');
     }
-  ];
+  };
 
-  if (loading) {
+  const handleExport = async () => {
+    try {
+      const blob = await ordersAPI.exportViolations(filters);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `violations-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('Violations exported successfully');
+    } catch (error) {
+      toast.error('Failed to export violations');
+    }
+  };
+
+  const handleFiltersChange = (newFilters) => {
+    setFilters(newFilters);
+  };
+
+  // Close modals
+  const closeViolationForm = () => {
+    setShowViolationForm(false);
+    setEditingViolation(null);
+  };
+
+  const closeDetailsModal = () => {
+    setShowDetailsModal(false);
+    setSelectedViolation(null);
+  };
+
+  const closeResolveDialog = () => {
+    setShowResolveDialog(false);
+    setSelectedViolation(null);
+    setIsBulkResolve(false);
+  };
+
+  if (error) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading violations...</p>
+          <p className="text-red-600 mb-2">Failed to load violations</p>
+          <Button onClick={refreshViolations}>Try Again</Button>
         </div>
       </div>
     );
@@ -171,81 +257,73 @@ const ViolationsPage = () => {
           <h1 className="text-3xl font-bold text-gray-900">Violations Management</h1>
           <p className="text-gray-600">Track and manage rental violations and penalties</p>
         </div>
+        
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button onClick={handleAddViolation}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Violation
+          </Button>
+        </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Violations</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.pending}</p>
-              </div>
-              <Clock className="h-8 w-8 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Resolved</p>
-                <p className="text-2xl font-bold text-green-600">{stats.resolved}</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Penalties</p>
-                <p className="text-2xl font-bold text-red-600">
-                  KES {stats.totalPenalties.toLocaleString()}
-                </p>
-              </div>
-              <DollarSign className="h-8 w-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Statistics Cards */}
+      <ViolationStatsCards stats={stats} loading={loading} />
+
+      {/* Filters */}
+      <ViolationFilters
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
+        onExport={handleExport}
+        onRefresh={refreshViolations}
+        loading={loading}
+      />
 
       {/* Violations Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Violations</CardTitle>
-          <CardDescription>
-            Manage rental violations including overdue returns, damaged items, and missing items
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={violationColumns}
-            data={violations}
-            searchable={true}
-            searchPlaceholder="Search violations by type, description, client..."
-            loading={loading}
-            emptyMessage="No violations found. This is good news!"
-            emptyIcon={CheckCircle}
-          />
-        </CardContent>
-      </Card>
+      <ViolationTable
+        violations={filteredViolations}
+        loading={loading}
+        selectedViolations={selectedViolations}
+        onSelectionChange={setSelectedViolations}
+        onResolve={handleResolveViolation}
+        onEdit={handleEditViolation}
+        onDelete={handleDeleteViolation}
+        onView={handleViewViolation}
+        onBulkResolve={handleBulkResolve}
+        showBulkActions={true}
+      />
+
+      {/* Modals */}
+      <ViolationForm
+        isOpen={showViolationForm}
+        onClose={closeViolationForm}
+        violation={editingViolation}
+        onSubmit={handleViolationSubmit}
+        loading={loading}
+      />
+
+      <ViolationDetailsModal
+        isOpen={showDetailsModal}
+        onClose={closeDetailsModal}
+        violation={selectedViolation}
+        onEdit={handleEditViolation}
+        onDelete={handleDeleteViolation}
+        onResolve={handleResolveViolation}
+        canEdit={true}
+      />
+
+      <ResolveViolationDialog
+        isOpen={showResolveDialog}
+        onClose={closeResolveDialog}
+        violation={selectedViolation}
+        onResolve={handleResolveSubmit}
+        loading={loading}
+        isBulkResolve={isBulkResolve}
+        violationCount={selectedViolations.length}
+      />
     </div>
   );
 };

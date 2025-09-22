@@ -95,7 +95,11 @@ api.interceptors.response.use(
 
 // Helper functions
 const handleResponse = (response) => {
-  return response.data;
+  // Handle different response formats from the server
+  if (response.data?.success && response.data?.data) {
+    return response.data.data; // Return the actual data from {success: true, data: {...}}
+  }
+  return response.data; // Return raw data for other formats
 };
 
 const handleError = (error) => {
@@ -198,7 +202,9 @@ export const inventoryAPI = {
 // Orders API
 export const ordersAPI = {
   getClients: () => api.get('/clients').then(handleResponse).catch(handleError),
+  getClient: (id) => api.get(`/clients/${id}`).then(handleResponse).catch(handleError),
   addClient: (clientData) => api.post('/clients', clientData).then(handleResponse).catch(handleError),
+  updateClient: (id, clientData) => api.put(`/clients/${id}`, clientData).then(handleResponse).catch(handleError),
   getOrders: (params) => api.get('/orders', { params }).then(handleResponse).catch(handleError),
   getOrder: (id) => api.get(`/orders/${id}`).then(handleResponse).catch(handleError),
   createOrder: (orderData) => api.post('/orders', orderData).then(handleResponse).catch(handleError),
@@ -207,8 +213,14 @@ export const ordersAPI = {
   requestDiscount: (id, discountData) => api.post(`/orders/${id}/discount/request`, discountData).then(handleResponse).catch(handleError),
   approveDiscount: (id, approvalData) => api.put(`/orders/${id}/discount/approve`, approvalData).then(handleResponse).catch(handleError),
   updatePayment: (id, paymentData) => api.put(`/orders/${id}/payment`, paymentData).then(handleResponse).catch(handleError),
-  getViolations: () => api.get('/orders/violations').then(handleResponse).catch(handleError),
-  resolveViolation: (id) => api.put(`/orders/violations/${id}/resolve`).then(handleResponse).catch(handleError)
+  getViolations: (params) => api.get('/orders/violations', { params }).then(handleResponse).catch(handleError),
+  getViolation: (id) => api.get(`/orders/violations/${id}`).then(handleResponse).catch(handleError),
+  createViolation: (violationData) => api.post('/orders/violations', violationData).then(handleResponse).catch(handleError),
+  updateViolation: (id, violationData) => api.put(`/orders/violations/${id}`, violationData).then(handleResponse).catch(handleError),
+  resolveViolation: (id, resolutionData) => api.put(`/orders/violations/${id}/resolve`, resolutionData).then(handleResponse).catch(handleError),
+  bulkResolveViolations: (violationIds, resolutionData) => api.put('/orders/violations/bulk-resolve', { violationIds, ...resolutionData }).then(handleResponse).catch(handleError),
+  deleteViolation: (id) => api.delete(`/orders/violations/${id}`).then(handleResponse).catch(handleError),
+  exportViolations: (params) => api.get('/orders/violations/export', { params, responseType: 'blob' }).then(handleResponse).catch(handleError)
 };
 
 // Workers API

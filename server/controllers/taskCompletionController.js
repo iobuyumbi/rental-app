@@ -1,7 +1,7 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const TaskCompletion = require('../models/TaskCompletion');
 const TaskRate = require('../models/TaskRate');
-const CasualWorker = require('../models/Worker');
+const Worker = require('../models/Worker');
 
 // @desc    Get all task completions
 // @route   GET /api/task-completions
