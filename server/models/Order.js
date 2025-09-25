@@ -6,6 +6,11 @@ const orderSchema = new mongoose.Schema({
     ref: 'Client',
     required: [true, 'Client is required']
   },
+  orderCompany: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   orderDate: {
     type: Date,
     default: Date.now
@@ -37,8 +42,8 @@ const orderSchema = new mongoose.Schema({
   },
   paymentStatus: {
     type: String,
-    enum: ['Pending', 'Paid', 'Partially Paid'],
-    default: 'Pending'
+    enum: ['pending', 'paid', 'partially_paid'],
+    default: 'pending'
   },
   discountApplied: {
     type: Boolean,
@@ -55,12 +60,17 @@ const orderSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Pending', 'Confirmed', 'Completed', 'Cancelled'],
-    default: 'Pending'
+    enum: ['pending', 'confirmed', 'completed', 'cancelled'],
+    default: 'pending'
   },
   notes: {
     type: String,
     trim: true
+  },
+  location: {
+    type: String,
+    trim: true,
+    required: false // Optional field for delivery/pickup location
   }
 }, {
   timestamps: true

@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { DollarSign, Users } from 'lucide-react';
 
-const FinancialReports = ({ discountApprovals, casualRemuneration }) => {
+const FinancialReports = ({ discountApprovals, workerRemuneration }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <Card>
@@ -46,18 +46,18 @@ const FinancialReports = ({ discountApprovals, casualRemuneration }) => {
         <CardHeader>
           <CardTitle>Worker Remuneration</CardTitle>
           <CardDescription>
-            Worker payment summary for the selected period
+            Recent worker payments and calculations
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {casualRemuneration.length === 0 ? (
+          {workerRemuneration.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
               <p className="text-gray-600">No remuneration data</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {Array.isArray(casualRemuneration) && casualRemuneration.slice(0, 5).map((worker, index) => (
+              {Array.isArray(workerRemuneration) && workerRemuneration.slice(0, 5).map((worker, index) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div>
                     <p className="font-medium">{worker.name}</p>

@@ -30,7 +30,13 @@ const OrdersTable = ({
       label: 'Client',
       render: (order) => (
         <div>
-          <div className="font-medium">{order.client?.name || 'Unknown'}</div>
+          <div className="font-medium">{order.client?.contactPerson || 'Unknown'}</div>
+          {order.orderCompany && (
+            <div className="text-sm text-gray-500">Order Company: {order.orderCompany}</div>
+          )}
+          {!order.orderCompany && order.client?.name && (
+            <div className="text-sm text-gray-500">Default Company: {order.client.name}</div>
+          )}
           <div className="text-sm text-gray-500">{order.client?.email}</div>
         </div>
       )

@@ -27,6 +27,8 @@ const ClientList = () => {
   } = useDataManager({
     fetchFn: ordersAPI.getClients,
     createFn: ordersAPI.addClient,
+    updateFn: ordersAPI.updateClient,
+    deleteFn: ordersAPI.deleteClient,
     entityName: 'client',
     autoLoad: true
   });

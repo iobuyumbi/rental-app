@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const workerPaymentSchema = new mongoose.Schema({
   worker: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'CasualWorker',
+    ref: 'Worker',
     required: [true, 'Worker reference is required']
   },
   paymentPeriod: {

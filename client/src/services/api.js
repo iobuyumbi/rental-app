@@ -205,6 +205,7 @@ export const ordersAPI = {
   getClient: (id) => api.get(`/clients/${id}`).then(handleResponse).catch(handleError),
   addClient: (clientData) => api.post('/clients', clientData).then(handleResponse).catch(handleError),
   updateClient: (id, clientData) => api.put(`/clients/${id}`, clientData).then(handleResponse).catch(handleError),
+  deleteClient: (id) => api.delete(`/clients/${id}`).then(handleResponse).catch(handleError),
   getOrders: (params) => api.get('/orders', { params }).then(handleResponse).catch(handleError),
   getOrder: (id) => api.get(`/orders/${id}`).then(handleResponse).catch(handleError),
   createOrder: (orderData) => api.post('/orders', orderData).then(handleResponse).catch(handleError),
@@ -253,8 +254,6 @@ export const workersAPI = {
   }
 };
 
-// Keep casualsAPI as an alias for backward compatibility during transition
-export const casualsAPI = workersAPI;
 
 // Lunch Allowance API
 export const lunchAllowanceAPI = {
@@ -330,11 +329,12 @@ export const reportsAPI = {
     }).then(handleResponse).catch(handleError),
     
   // Worker reports
-  casualRemuneration: (params = {}) =>
-    api.get('/reports/worker-remuneration-summary', {
+  workerRemuneration: (params = {}) => {
+    return api.get('/reports/worker-remuneration', {
       params,
-      headers: { 'x-cache-max-age': '3600000' } // 1 hour
-    }).then(handleResponse).catch(handleError),
+      timeout: 10000
+    });
+  },
     
   // Inventory status
   inventoryStatus: () =>

@@ -35,8 +35,8 @@ const productSchema = new mongoose.Schema({
   },
   condition: {
     type: String,
-    enum: ['Good', 'Fair', 'Needs Repair'],
-    default: 'Good'
+    enum: ['good', 'fair', 'needs_repair'],
+    default: 'good'
   },
   description: {
     type: String,

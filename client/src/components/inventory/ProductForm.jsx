@@ -24,7 +24,7 @@ const ProductForm = ({
       onOpenChange={(open) => !open && onClose()}
       title={editingProduct ? 'Edit Product' : 'Add New Product'}
       onSubmit={onSubmit}
-      loading={isSubmitting}
+      isSubmitting={isSubmitting}
     >
       <FormInput
         label="Product Name"

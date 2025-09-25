@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 function ClientForm() {
   const [formData, setFormData] = useState({
     name: '',
+    company: '',
     contactPerson: '',
     email: '',
     phone: '',
@@ -101,6 +102,20 @@ function ClientForm() {
             onChange={handleChange}
             className="w-full p-2 border rounded"
             required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Company
+          </label>
+          <input
+            type="text"
+            name="company"
+            value={formData.company || ''}
+            onChange={handleChange}
+            className="w-full p-2 border rounded"
+            placeholder="Leave blank for individual clients"
           />
         </div>
 

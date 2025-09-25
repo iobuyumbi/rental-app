@@ -9,7 +9,7 @@ const violationSchema = new mongoose.Schema({
   violationType: {
     type: String,
     required: [true, 'Violation type is required'],
-    enum: ['Overdue Return', 'Damaged Item', 'Missing Item', 'Late Payment', 'Contract Violation']
+    enum: ['overdue_return', 'damaged_item', 'missing_item', 'late_payment', 'contract_violation']
   },
   description: {
     type: String,

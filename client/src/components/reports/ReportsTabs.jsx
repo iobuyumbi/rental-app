@@ -47,7 +47,7 @@ const ReportsTabs = ({
       <TabsContent value="financial" className="space-y-4">
         <FinancialReports
           discountApprovals={reports.discountApprovals}
-          casualRemuneration={reports.casualRemuneration}
+          workerRemuneration={reports.workerRemuneration}
         />
       </TabsContent>
     </Tabs>

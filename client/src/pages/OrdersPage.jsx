@@ -56,7 +56,9 @@ const OrdersPage = () => {
       paymentStatus: 'pending',
       deposit: 0,
       discount: 0,
-      taxRate: 16
+      taxRate: 16,
+      location: '', // Add optional location field
+      orderCompany: '' // Add order-specific company field
     },
     {
       client: { required: true },
@@ -82,7 +84,9 @@ const OrdersPage = () => {
         discount: parseFloat(formData.discount) || 0,
         taxRate: parseFloat(formData.taxRate) || 16,
         status: formData.status,
-        paymentStatus: formData.paymentStatus
+        paymentStatus: formData.paymentStatus,
+        location: formData.location || '', // Add location to order data
+        orderCompany: formData.orderCompany || '' // Add order-specific company
       };
 
       try {
@@ -111,11 +115,11 @@ const OrdersPage = () => {
 
   const totals = calculateTotals();
 
-  // Format client options for the dropdown
+  // Format client options for the dropdown - show individual names prominently
   const clientOptions = React.useMemo(() => {
     return clients.map(client => ({
       ...client,
-      label: `${client.name}${client.company ? ` (${client.company})` : ''}`,
+      label: client.name, // Show individual's name prominently
       value: client._id
     }));
   }, [clients]);
@@ -199,7 +203,9 @@ const OrdersPage = () => {
       deposit: order.deposit || 0,
       discount: order.discount || 0,
       taxRate: order.taxRate || 16,
-      notes: order.notes || ''
+      notes: order.notes || '',
+      location: order.location || '', // Add location field for editing
+      orderCompany: order.orderCompany || '' // Add order-specific company for editing
     });
     setShowAddOrder(true);
   };
@@ -264,6 +270,23 @@ const OrdersPage = () => {
     orderForm.handleChange(field, value);
   };
 
+  // Handle adding new client from OrderForm
+  const handleAddNewClient = async (clientData) => {
+    try {
+      const newClient = await ordersAPI.addClient(clientData);
+      
+      // Add the new client to the clients list
+      setClients(prev => [...prev, newClient]);
+      
+      toast.success('New client created successfully!');
+      return newClient;
+    } catch (error) {
+      console.error('Error creating new client:', error);
+      toast.error('Failed to create new client');
+      throw error; // Re-throw so the OrderForm can handle it
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -295,6 +318,7 @@ const OrdersPage = () => {
         isSubmitting={orderForm.isSubmitting}
         editingOrder={editingOrder}
         clientOptions={clientOptions}
+        onAddNewClient={handleAddNewClient}
         // Product selection props
         productSearch={productSearch}
         setProductSearch={setProductSearch}

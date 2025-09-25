@@ -4,7 +4,8 @@ const {
   getClients,
   getClient,
   createClient,
-  updateClient
+  updateClient,
+  deleteClient
 } = require('../controllers/clientController');
 const { protect, adminOrAssistant } = require('../middleware/auth');
 
@@ -18,6 +19,7 @@ router.route('/')
 
 router.route('/:id')
   .get(getClient)
-  .put(updateClient);
+  .put(updateClient)
+  .delete(deleteClient);
 
 module.exports = router;

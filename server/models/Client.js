@@ -6,6 +6,10 @@ const clientSchema = new mongoose.Schema({
     required: [true, 'Client name is required'],
     trim: true
   },
+  company: {
+    type: String,
+    trim: true
+  },
   contactPerson: {
     type: String,
     required: [true, 'Contact person is required'],

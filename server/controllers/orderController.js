@@ -29,7 +29,7 @@ const getOrders = asyncHandler(async (req, res) => {
   }
 
   const orders = await Order.find(query)
-    .populate('client', 'name contactPerson phone email')
+    .populate('client', 'name contactPerson phone email company')
     .populate('discountApprovedBy', 'name')
     .sort({ orderDate: -1 });
   
@@ -45,7 +45,7 @@ const getOrders = asyncHandler(async (req, res) => {
 // @access  Private
 const getOrder = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id)
-    .populate('client', 'name contactPerson phone email address')
+    .populate('client', 'name contactPerson phone email address company')
     .populate('discountApprovedBy', 'name');
   
   if (!order) {
@@ -164,7 +164,7 @@ const createOrder = asyncHandler(async (req, res) => {
   }
   
   const populatedOrder = await Order.findById(order._id)
-    .populate('client', 'name contactPerson phone email')
+    .populate('client', 'name contactPerson phone email company')
     .populate('discountApprovedBy', 'name');
   
   res.status(201).json({
@@ -188,7 +188,7 @@ const updateOrder = asyncHandler(async (req, res) => {
     new: true,
     runValidators: true
   })
-    .populate('client', 'name contactPerson phone email')
+    .populate('client', 'name contactPerson phone email company')
     .populate('discountApprovedBy', 'name');
   
   res.json({
@@ -299,7 +299,7 @@ const approveDiscount = asyncHandler(async (req, res) => {
   await order.save();
   
   const populatedOrder = await Order.findById(order._id)
-    .populate('client', 'name contactPerson phone email')
+    .populate('client', 'name contactPerson phone email company')
     .populate('discountApprovedBy', 'name');
   
   res.json({
@@ -334,7 +334,7 @@ const updatePayment = asyncHandler(async (req, res) => {
   await order.save();
   
   const populatedOrder = await Order.findById(order._id)
-    .populate('client', 'name contactPerson phone email')
+    .populate('client', 'name contactPerson phone email company')
     .populate('discountApprovedBy', 'name');
   
   res.json({

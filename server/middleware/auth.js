@@ -17,9 +17,14 @@ const protect = asyncHandler(async (req, res, next) => {
       // Get user from the token
       req.user = await User.findById(decoded.id).select('-password');
 
+      if (!req.user) {
+        res.status(401);
+        throw new Error('User not found');
+      }
+
       next();
     } catch (error) {
-      console.error(error);
+      console.error('Auth error:', error.message);
       res.status(401);
       throw new Error('Not authorized, token failed');
     }
@@ -33,7 +38,7 @@ const protect = asyncHandler(async (req, res, next) => {
 
 // Admin only
 const admin = (req, res, next) => {
-  if (req.user && req.user.role === 'Admin') {
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'Admin')) {
     next();
   } else {
     res.status(403);
@@ -43,7 +48,10 @@ const admin = (req, res, next) => {
 
 // Admin or Admin Assistant
 const adminOrAssistant = (req, res, next) => {
-  if (req.user && (req.user.role === 'Admin' || req.user.role === 'AdminAssistant')) {
+  if (req.user && (
+    req.user.role === 'admin' || req.user.role === 'Admin' ||
+    req.user.role === 'admin_assistant' || req.user.role === 'AdminAssistant'
+  )) {
     next();
   } else {
     res.status(403);

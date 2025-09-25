@@ -31,7 +31,11 @@ const ClientSelector = ({
 
   const handleSelectClient = (client) => {
     setSelectedClient(client);
-    setClientSearch(`${client.name}${client.company ? ` (${client.company})` : ''}`);
+    // Display individual's name with optional company name
+    const displayName = client.name ? 
+      `${client.contactPerson} (${client.name})` : 
+      client.contactPerson;
+    setClientSearch(displayName);
     setIsOpen(false);
   };
 
@@ -78,18 +82,12 @@ const ClientSelector = ({
                 filteredClients.map((client) => (
                   <div
                     key={client._id}
-                    className="flex cursor-pointer items-center justify-between rounded-sm px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                    className={`px-4 py-2 hover:bg-accent hover:text-accent-foreground cursor-pointer ${
+                      selectedClient?._id === client._id ? 'bg-accent' : ''
+                    }`}
                     onClick={() => handleSelectClient(client)}
                   >
-                    <span>
-                      {client.name}
-                      {client.company && <span className="ml-2 text-muted-foreground">({client.company})</span>}
-                    </span>
-                    {client.clientType === 'vendor' && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
-                        Vendor
-                      </span>
-                    )}
+                    <div className="font-medium">{client.contactPerson}</div>
                   </div>
                 ))
               ) : (

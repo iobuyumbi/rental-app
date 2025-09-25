@@ -3,12 +3,12 @@ const mongoose = require('mongoose');
 const lunchAllowanceSchema = new mongoose.Schema({
   workerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'CasualWorker',
+    ref: 'Worker',
     required: true
   },
   attendanceId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'CasualAttendance',
+    ref: 'WorkerAttendance',
     required: true
   },
   date: {
@@ -23,8 +23,8 @@ const lunchAllowanceSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Pending', 'Provided', 'Cancelled'],
-    default: 'Pending'
+    enum: ['pending', 'provided', 'cancelled'],
+    default: 'pending'
   },
   notes: {
     type: String,

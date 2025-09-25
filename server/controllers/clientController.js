@@ -38,13 +38,40 @@ const getClient = asyncHandler(async (req, res) => {
 const createClient = asyncHandler(async (req, res) => {
   console.log('Creating client with data:', req.body);
   
-  const client = await Client.create(req.body);
-  console.log('Client created successfully:', client);
-  
-  res.status(201).json({
-    success: true,
-    data: client
-  });
+  try {
+    const client = await Client.create(req.body);
+    console.log('Client created successfully:', client);
+    
+    res.status(201).json({
+      success: true,
+      data: client
+    });
+  } catch (error) {
+    console.error('Client creation error:', error);
+    
+    if (error.code === 11000) {
+      // Handle duplicate key error (unique constraint violation)
+      const field = Object.keys(error.keyPattern)[0];
+      const fieldName = field === 'email' ? 'Email' : field.charAt(0).toUpperCase() + field.slice(1);
+      return res.status(400).json({
+        success: false,
+        message: `${fieldName} already exists. Please use a different ${field}.`
+      });
+    }
+    
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: messages.join(', ')
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Server error creating client'
+    });
+  }
 });
 
 // @desc    Update client
@@ -112,9 +139,49 @@ const updateClient = asyncHandler(async (req, res) => {
   }
 });
 
+// Delete client
+const deleteClient = asyncHandler(async (req, res) => {
+  try {
+    const client = await Client.findById(req.params.id);
+    
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        message: 'Client not found'
+      });
+    }
+    
+    // Check if client has any orders before deleting
+    const Order = require('../models/Order');
+    const orderCount = await Order.countDocuments({ client: client._id });
+    
+    if (orderCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete client. Client has ${orderCount} associated order(s). Please remove or reassign orders first.`
+      });
+    }
+    
+    await Client.findByIdAndDelete(req.params.id);
+    
+    res.json({
+      success: true,
+      message: 'Client deleted successfully'
+    });
+  } catch (error) {
+    console.error('Client deletion error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Server error deleting client'
+    });
+  }
+});
+
 module.exports = {
   getClients,
   getClient,
   createClient,
-  updateClient
+  updateClient,
+  deleteClient
 };

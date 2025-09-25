@@ -12,7 +12,7 @@ const ReportsPage = () => {
   const [selectedOrder, setSelectedOrder] = useState('');
   const [reports, setReports] = useState({
     discountApprovals: [],
-    casualRemuneration: [],
+    workerRemuneration: [],
     inventoryStatus: {},
     overdueReturns: []
   });
@@ -43,16 +43,16 @@ const ReportsPage = () => {
 
   const loadReports = async () => {
     try {
-      const [discountRes, casualRes, inventoryRes, overdueRes] = await Promise.allSettled([
+      const [discountRes, workerRes, inventoryRes, overdueRes] = await Promise.allSettled([
         reportsAPI.discountApprovals(dateRange),
-        reportsAPI.casualRemuneration(dateRange),
+        reportsAPI.workerRemuneration(dateRange),
         reportsAPI.inventoryStatus(),
         reportsAPI.overdueReturns(dateRange)
       ]);
 
       setReports({
         discountApprovals: discountRes.status === 'fulfilled' ? (discountRes.value.data || []) : [],
-        casualRemuneration: casualRes.status === 'fulfilled' ? (casualRes.value.data || []) : [],
+        workerRemuneration: workerRes.status === 'fulfilled' ? (workerRes.value.data || []) : [],
         inventoryStatus: inventoryRes.status === 'fulfilled' ? (inventoryRes.value.data || {}) : {},
         overdueReturns: overdueRes.status === 'fulfilled' ? (overdueRes.value.data || []) : []
       });

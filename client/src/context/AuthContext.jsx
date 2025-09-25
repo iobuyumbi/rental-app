@@ -18,7 +18,25 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token) {
+    const cachedUser = localStorage.getItem("user");
+    
+    if (token && cachedUser) {
+      try {
+        // First set the cached user data immediately to prevent redirect
+        const userData = JSON.parse(cachedUser);
+        setUser(userData);
+        setLoading(false);
+        
+        // Then validate the token in the background
+        loadUser();
+      } catch (err) {
+        console.error("Error parsing cached user data:", err);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setLoading(false);
+      }
+    } else if (token) {
+      // Token exists but no cached user data
       loadUser();
     } else {
       setLoading(false);
@@ -28,26 +46,28 @@ export const AuthProvider = ({ children }) => {
   const loadUser = async () => {
     try {
       const response = await authAPI.getProfile();
-      setUser(response.data);
+      setUser(response);
       setError(null);
     } catch (err) {
       console.error("Failed to load user:", err);
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-
-      // More specific error messages
-      let errorMessage = "Failed to load user profile";
-      if (err.status === 401) {
-        errorMessage = "Session expired. Please log in again.";
-      } else if (err.status === 403) {
-        errorMessage = "Access denied. Please contact your administrator.";
-      } else if (err.code === "OFFLINE") {
-        errorMessage = "You are offline. Please check your connection.";
-      } else if (err.message) {
-        errorMessage = err.message;
+      
+      // Only clear auth data for actual authentication errors (401/403)
+      // Don't clear for network errors or other temporary issues
+      if (err.status === 401 || err.status === 403) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setUser(null);
+        
+        let errorMessage = "Session expired. Please log in again.";
+        if (err.status === 403) {
+          errorMessage = "Access denied. Please contact your administrator.";
+        }
+        setError(errorMessage);
+      } else {
+        // For network errors, keep the user logged in but show a warning
+        console.warn("Network error during token validation, keeping user logged in:", err);
+        // Don't set error for network issues to avoid confusing the user
       }
-
-      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -205,8 +225,8 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     clearError,
     isAuthenticated: !!user,
-    isAdmin: user?.role === "Admin",
-    isAdminAssistant: user?.role === "AdminAssistant",
+    isAdmin: user?.role === "admin" || user?.role === "Admin",
+    isAdminAssistant: user?.role === "admin_assistant" || user?.role === "AdminAssistant",
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

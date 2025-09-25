@@ -43,7 +43,7 @@ const AnalyticsCards = ({ orders, reports }) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Workers</p>
-              <p className="text-2xl font-bold">{reports.casualRemuneration.length}</p>
+              <p className="text-2xl font-bold">{reports.workerRemuneration.length}</p>
             </div>
             <Users className="h-8 w-8 text-purple-600" />
           </div>

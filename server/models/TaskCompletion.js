@@ -14,7 +14,7 @@ const taskCompletionSchema = new mongoose.Schema({
   workersPresent: [{
     worker: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'CasualWorker',
+      ref: 'Worker',
       required: true
     },
     hoursWorked: {

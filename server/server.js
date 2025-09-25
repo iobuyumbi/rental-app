@@ -1,10 +1,19 @@
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const compression = require("compression");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 
 // Load environment variables
 dotenv.config();
+
+// Log environment variables for debugging
+console.log('🔧 Environment check:');
+console.log('NODE_ENV:', process.env.NODE_ENV || 'not set');
+console.log('PORT:', process.env.PORT || 'not set');
+console.log('MONGO_URI:', process.env.MONGO_URI ? 'set' : 'not set');
+console.log('JWT_SECRET:', process.env.JWT_SECRET ? 'set' : 'not set');
 
 // Import routes
 const userRoutes = require("./routes/usersRoutes");
@@ -25,7 +34,12 @@ const notFound = require("./middleware/notFound");
 const app = express();
 
 // Connect to database
-connectDB();
+console.log('🔌 Attempting to connect to database...');
+connectDB().then(() => {
+  console.log('✅ Database connection successful');
+}).catch((error) => {
+  console.error('❌ Database connection failed:', error.message);
+});
 
 // Middleware - CORS configuration for development
 const corsOptions = {
@@ -36,9 +50,14 @@ const corsOptions = {
   optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 };
 
+// Security middleware
+app.use(helmet());
+app.use(compression());
+
+// CORS and body parsing
 app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
 app.use("/api/users", userRoutes);
@@ -65,5 +84,10 @@ const PORT = process.env.PORT || 5000;
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📍 Server URL: http://localhost:${PORT}`);
+  console.log(`🔗 API Base URL: http://localhost:${PORT}/api`);
+}).on('error', (error) => {
+  console.error('❌ Server startup error:', error.message);
+  process.exit(1);
 });
