@@ -225,8 +225,8 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     clearError,
     isAuthenticated: !!user,
-    isAdmin: user?.role === "admin" || user?.role === "Admin",
-    isAdminAssistant: user?.role === "admin_assistant" || user?.role === "AdminAssistant",
+    isAdmin: user?.role === "admin",
+    isAdminAssistant: user?.role === "admin_assistant",
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

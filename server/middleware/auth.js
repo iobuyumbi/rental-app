@@ -38,7 +38,7 @@ const protect = asyncHandler(async (req, res, next) => {
 
 // Admin only
 const admin = (req, res, next) => {
-  if (req.user && (req.user.role === 'admin' || req.user.role === 'Admin')) {
+  if (req.user && req.user.role === 'admin') {
     next();
   } else {
     res.status(403);
@@ -49,8 +49,8 @@ const admin = (req, res, next) => {
 // Admin or Admin Assistant
 const adminOrAssistant = (req, res, next) => {
   if (req.user && (
-    req.user.role === 'admin' || req.user.role === 'Admin' ||
-    req.user.role === 'admin_assistant' || req.user.role === 'AdminAssistant'
+    req.user.role === 'admin' ||
+    req.user.role === 'admin_assistant'
   )) {
     next();
   } else {

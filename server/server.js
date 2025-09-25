@@ -18,7 +18,7 @@ console.log('JWT_SECRET:', process.env.JWT_SECRET ? 'set' : 'not set');
 // Import routes
 const userRoutes = require("./routes/usersRoutes");
 const inventoryRoutes = require("./routes/inventoryRoutes");
-const orderRoutes = require("./routes/ordersRoutes");
+const ordersRoutes = require("./routes/ordersRoutes");
 const workerRoutes = require("./routes/workersRoutes");
 const clientRoutes = require("./routes/clientRoutes");
 const transactionRoutes = require("./routes/transactionsRoutes");
@@ -62,7 +62,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Routes
 app.use("/api/users", userRoutes);
 app.use("/api/inventory", inventoryRoutes);
-app.use("/api/orders", orderRoutes);
+app.use("/api/orders", ordersRoutes);
 app.use("/api/workers", workerRoutes);
 app.use("/api/clients", clientRoutes);
 app.use("/api/transactions", transactionRoutes);
