@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { inventoryAPI, ordersAPI } from '../../services/api';
+import { fixInventoryQuantities } from '../../utils/fixInventory';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { RefreshCw, Package, ShoppingCart } from 'lucide-react';
+import { RefreshCw, Package, ShoppingCart, Wrench } from 'lucide-react';
+import { toast } from 'sonner';
 
 /**
  * InventoryDebug - Debug component to check current inventory status and active orders
@@ -58,15 +60,46 @@ const InventoryDebug = () => {
     return totalRented;
   };
 
+  const handleFixInventory = async () => {
+    setLoading(true);
+    try {
+      const updates = await fixInventoryQuantities();
+      toast.success(`Fixed inventory for ${updates.length} products`);
+      await fetchData(); // Refresh data
+    } catch (error) {
+      console.error('Error fixing inventory:', error);
+      toast.error('Failed to fix inventory quantities');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Inventory Debug Panel</h2>
-        <Button onClick={fetchData} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh Data
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleFixInventory} disabled={loading} variant="outline">
+            <Wrench className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Fix Inventory
+          </Button>
+          <Button onClick={fetchData} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh Data
+          </Button>
+        </div>
       </div>
+
+      {/* Fix Instructions */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="pt-4">
+          <p className="text-sm text-blue-800">
+            <strong>🔧 Fix Inventory:</strong> If you see discrepancies below (red highlights), 
+            click "Fix Inventory" to recalculate quantities based on active orders. 
+            This will sync the database with actual rental status.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Active Orders Summary */}
       <Card>

@@ -58,7 +58,7 @@ const InventoryPage = () => {
 
     window.addEventListener('inventoryUpdated', handleInventoryUpdate);
     return () => window.removeEventListener('inventoryUpdated', handleInventoryUpdate);
-  }, [refreshProducts]);
+  }, []); // Remove refreshProducts dependency to prevent infinite loops
 
   // Filter products based on search criteria
   const filteredProducts = products.filter(product => {

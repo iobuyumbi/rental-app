@@ -482,7 +482,7 @@ const OrdersPage = () => {
       console.log('Creating status change task:', taskData);
       // The task creation is handled by the WorkerTaskModal
       // We just need to refresh data after completion
-      await refreshOrders();
+      await loadOrders();
       toast.success('Worker task recorded successfully');
       
       // Also trigger a refresh of inventory data if available
