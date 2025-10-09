@@ -504,6 +504,58 @@ const OrdersPage = () => {
     setStatusChangeData(null);
   };
 
+  // Handle status change from table button
+  const handleTableStatusChange = async (orderId, statusData) => {
+    try {
+      console.log('Changing order status:', orderId, statusData);
+      
+      // Update the order with new status and calculations
+      const updateData = {
+        status: statusData.status,
+        totalAmount: statusData.adjustedAmount,
+        actualReturnDate: statusData.actualDate,
+        chargeableDays: statusData.chargeableDays,
+        usageCalculation: statusData.calculations
+      };
+
+      const updatedOrder = await updateOrder(orderId, updateData);
+      
+      // Trigger status change handler for worker tasks if needed
+      const order = orders.find(o => o._id === orderId);
+      if (order && (statusData.status === 'in_progress' || statusData.status === 'completed')) {
+        setStatusChangeData({
+          order: { ...order, ...updateData },
+          previousStatus: order.status,
+          newStatus: statusData.status
+        });
+        setShowStatusChangeHandler(true);
+      }
+
+      // Trigger inventory update
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('inventoryUpdated'));
+      }
+
+      await loadOrders();
+      
+      if (statusData.calculations?.difference) {
+        const diff = statusData.calculations.difference;
+        if (diff > 0) {
+          toast.success(`Status updated. Additional charge: KES ${diff.toLocaleString()}`);
+        } else if (diff < 0) {
+          toast.success(`Status updated. Refund: KES ${Math.abs(diff).toLocaleString()}`);
+        }
+      } else {
+        toast.success('Order status updated successfully');
+      }
+
+    } catch (error) {
+      console.error('Error changing order status:', error);
+      toast.error(error.message || 'Failed to change order status');
+      throw error; // Re-throw to let modal handle it
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -565,6 +617,7 @@ const OrdersPage = () => {
         onEditOrder={handleEditOrder}
         onViewOrder={handleViewOrder}
         onDeleteOrder={deleteOrder}
+        onStatusChange={handleTableStatusChange}
       />
 
       {/* Order Form Modal */}

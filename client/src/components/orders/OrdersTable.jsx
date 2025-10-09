@@ -3,6 +3,7 @@ import { Badge } from '../ui/badge';
 import { ShoppingCart } from 'lucide-react';
 import DataTable from '../common/DataTable';
 import OrderStatusBadges, { getStatusBadgeVariant, getPaymentStatusBadgeVariant } from './OrderStatusBadges';
+import StatusButton from './StatusButton';
 
 const OrdersTable = ({ 
   orders, 
@@ -10,7 +11,8 @@ const OrdersTable = ({
   onAddOrder, 
   onEditOrder,
   onViewOrder,
-  onDeleteOrder 
+  onDeleteOrder,
+  onStatusChange
 }) => {
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -122,7 +124,20 @@ const OrdersTable = ({
     {
       key: 'status',
       label: 'Status',
-      render: (value, order) => <OrderStatusBadges order={order} />
+      render: (value, order) => (
+        <div className="flex flex-col gap-1">
+          <StatusButton 
+            order={order} 
+            onStatusChange={onStatusChange}
+            disabled={!onStatusChange}
+          />
+          <div className="flex gap-1">
+            <Badge variant={getPaymentStatusBadgeVariant(order.paymentStatus)} className="text-xs">
+              {order.paymentStatus || 'unpaid'}
+            </Badge>
+          </div>
+        </div>
+      )
     }
   ];
 
