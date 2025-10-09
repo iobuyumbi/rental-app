@@ -1,15 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ESNext", // Enables latest JavaScript features
-    "module": "ESNext", // Uses ES modules (required by Vite)
-    "moduleResolution": "Node", // Resolves modules like Node.js
-    "baseUrl": ".", // Base path for resolving modules
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"] // Allows you to use "@/components/Button"
+      "@/*": ["src/*"]
     },
-    "jsx": "react-jsx", // JSX support for React 17+
-    "allowSyntheticDefaultImports": true // Allows default imports of CommonJS modules
+    "jsx": "react-jsx",
+    "allowSyntheticDefaultImports": true
   },
-  "include": ["src"], // Only include files inside `src/`
-  "exclude": ["node_modules", "dist"] // Ignore these folders
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
 }

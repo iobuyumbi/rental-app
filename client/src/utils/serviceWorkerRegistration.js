@@ -1,13 +1,13 @@
 // This file handles the service worker registration and update flow
 
-let isLocalhost = Boolean(
+// Note: Previously used to detect localhost; not needed currently
+// Keeping here for potential future logic
+const isLocalhost = Boolean(
   window.location.hostname === 'localhost' ||
-    // [::1] is the IPv6 localhost address.
-    window.location.hostname === '[::1]' ||
-    // 127.0.0.0/8 are considered localhost for IPv4.
-    window.location.hostname.match(
-      /^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/
-    )
+  window.location.hostname === '[::1]' ||
+  window.location.hostname.match(
+    /^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/
+  )
 );
 
 // Register the service worker
@@ -82,9 +82,9 @@ const checkForUpdate = async () => {
 // Initialize the service worker
 const initializeServiceWorker = async () => {
   // Only register service worker in production, not in development
-  if (process.env.NODE_ENV === 'production') {
+  if (import.meta.env.MODE === 'production') {
     try {
-      await register();
+      const reg = await register();
       
       // Check for updates every hour
       setInterval(checkForUpdate, 60 * 60 * 1000);
@@ -94,7 +94,7 @@ const initializeServiceWorker = async () => {
         window.location.reload();
       });
       
-      return registration;
+      return reg;
     } catch (error) {
       console.error('Failed to initialize service worker:', error);
     }

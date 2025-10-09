@@ -31,7 +31,7 @@ const ReportsPage = () => {
       const [ordersRes] = await Promise.all([
         ordersAPI.getOrders()
       ]);
-      setOrders(ordersRes.data?.data || ordersRes.data || []);
+      setOrders(ordersRes || []);
       await loadReports();
     } catch (error) {
       console.error('Error loading initial data:', error);
@@ -50,15 +50,35 @@ const ReportsPage = () => {
         reportsAPI.overdueReturns(dateRange)
       ]);
 
+      // Log any failed requests for debugging
+      if (discountRes.status === 'rejected') {
+        console.warn('Discount approvals API failed:', discountRes.reason);
+      }
+      if (workerRes.status === 'rejected') {
+        console.warn('Worker remuneration API failed:', workerRes.reason);
+      }
+      if (inventoryRes.status === 'rejected') {
+        console.warn('Inventory status API failed:', inventoryRes.reason);
+      }
+      if (overdueRes.status === 'rejected') {
+        console.warn('Overdue returns API failed:', overdueRes.reason);
+      }
+
       setReports({
-        discountApprovals: discountRes.status === 'fulfilled' ? (discountRes.value.data || []) : [],
-        workerRemuneration: workerRes.status === 'fulfilled' ? (workerRes.value.data || []) : [],
-        inventoryStatus: inventoryRes.status === 'fulfilled' ? (inventoryRes.value.data || {}) : {},
-        overdueReturns: overdueRes.status === 'fulfilled' ? (overdueRes.value.data || []) : []
+        discountApprovals: discountRes.status === 'fulfilled' ? discountRes.value : [],
+        workerRemuneration: workerRes.status === 'fulfilled' ? workerRes.value : [],
+        inventoryStatus: inventoryRes.status === 'fulfilled' ? inventoryRes.value : {},
+        overdueReturns: overdueRes.status === 'fulfilled' ? overdueRes.value : []
       });
+      
+      // Show success message if at least some reports loaded
+      const successCount = [discountRes, workerRes, inventoryRes, overdueRes].filter(r => r.status === 'fulfilled').length;
+      if (successCount > 0) {
+        toast.success(`Loaded ${successCount} out of 4 reports successfully`);
+      }
     } catch (error) {
       console.error('Error loading reports:', error);
-      toast.error('Failed to load some reports');
+      toast.error('Failed to load reports');
     }
   };
 

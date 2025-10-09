@@ -83,7 +83,7 @@ const ViolationTable = ({
   const violationColumns = [
     // Selection column
     ...(showBulkActions ? [{
-      header: ({ table }) => (
+      header: ({ table } = {}) => (
         <Checkbox
           checked={selectedViolations.length === violations.filter(v => !v.resolved).length && violations.filter(v => !v.resolved).length > 0}
           onCheckedChange={handleSelectAll}

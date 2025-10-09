@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Package } from 'lucide-react';
 import { inventoryAPI } from '../services/api';
 import useDataManager from '../hooks/useDataManager';
@@ -48,6 +48,17 @@ const InventoryPage = () => {
   });
 
   const loading = productsLoading || categoriesLoading;
+
+  // Listen for inventory updates from order status changes
+  useEffect(() => {
+    const handleInventoryUpdate = () => {
+      console.log('Inventory update event received, refreshing products...');
+      refreshProducts();
+    };
+
+    window.addEventListener('inventoryUpdated', handleInventoryUpdate);
+    return () => window.removeEventListener('inventoryUpdated', handleInventoryUpdate);
+  }, [refreshProducts]);
 
   // Filter products based on search criteria
   const filteredProducts = products.filter(product => {

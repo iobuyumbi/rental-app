@@ -135,7 +135,8 @@ const OrderForm = ({
     if (!newClientData.address.trim()) errors.address = 'Address is required';
     
     // Email format validation
-    const emailRegex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+    // Escape dot is not needed inside character class; keep it outside where needed
+    const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
     if (newClientData.email && !emailRegex.test(newClientData.email)) {
       errors.email = 'Please enter a valid email address';
     }
@@ -247,26 +248,32 @@ const OrderForm = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <FormInput
-              label="Start Date"
-              name="startDate"
-              type="date"
-              value={formData.startDate || ''}
-              onChange={(e) => onFormChange('startDate', e.target.value)}
-              error={errors.startDate}
-              required
-            />
-            
-            <FormInput
-              label="End Date"
-              name="endDate"
-              type="date"
-              value={formData.endDate || ''}
-              onChange={(e) => onFormChange('endDate', e.target.value)}
-              error={errors.endDate}
-              required
-            />
+          {/* Rental Period */}
+          <div className="space-y-2">
+            <h4 className="text-md font-medium text-gray-900">Rental Period</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormInput
+                label="Rental Start Date"
+                name="startDate"
+                type="date"
+                value={formData.startDate || ''}
+                onChange={(e) => onFormChange('startDate', e.target.value)}
+                error={errors.startDate}
+                required
+                className="w-full"
+              />
+              
+              <FormInput
+                label="Rental End Date"
+                name="endDate"
+                type="date"
+                value={formData.endDate || ''}
+                onChange={(e) => onFormChange('endDate', e.target.value)}
+                error={errors.endDate}
+                required
+                className="w-full"
+              />
+            </div>
           </div>
 
           <FormInput
@@ -278,28 +285,6 @@ const OrderForm = ({
             error={errors.location}
             placeholder="Where should the rental items be delivered/picked up? (Optional)"
           />
-
-          <div className="grid grid-cols-2 gap-4">
-            <FormSelect
-              label="Status"
-              name="status"
-              value={formData.status || 'pending'}
-              onChange={(e) => onFormChange('status', e.target.value)}
-              error={errors.status}
-              required
-              options={statusOptions}
-            />
-            
-            <FormSelect
-              label="Payment Status"
-              name="paymentStatus"
-              value={formData.paymentStatus || 'pending'}
-              onChange={(e) => onFormChange('paymentStatus', e.target.value)}
-              error={errors.paymentStatus}
-              required
-              options={paymentStatusOptions}
-            />
-          </div>
         </div>
 
         {/* Products & Summary Section */}
@@ -340,7 +325,31 @@ const OrderForm = ({
         <div className="space-y-4">
           <h3 className="text-lg font-semibold border-b pb-2">Payment Details</h3>
           
-          <div className="grid grid-cols-2 gap-4">
+          {/* Status Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormSelect
+              label="Order Status"
+              name="status"
+              value={formData.status || 'pending'}
+              onChange={(e) => onFormChange('status', e.target.value)}
+              error={errors.status}
+              required
+              options={statusOptions}
+            />
+            
+            <FormSelect
+              label="Payment Status"
+              name="paymentStatus"
+              value={formData.paymentStatus || 'pending'}
+              onChange={(e) => onFormChange('paymentStatus', e.target.value)}
+              error={errors.paymentStatus}
+              required
+              options={paymentStatusOptions}
+            />
+          </div>
+          
+          {/* Payment Amounts */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormInput
               label="Deposit (KES)"
               name="deposit"

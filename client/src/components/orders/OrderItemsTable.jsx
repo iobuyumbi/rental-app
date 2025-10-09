@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { X, PlusCircle, MinusCircle, Edit2, Check, X as XIcon } from 'lucide-react';
+import { X, Edit2, Check, X as XIcon } from 'lucide-react';
 
 const OrderItemsTable = ({ 
   orderItems, 
@@ -12,10 +12,12 @@ const OrderItemsTable = ({
 }) => {
   const [editingPrice, setEditingPrice] = useState(null);
   const [tempPrice, setTempPrice] = useState('');
+  const [editingQuantity, setEditingQuantity] = useState(null);
+  const [tempQuantity, setTempQuantity] = useState('');
 
   const handleStartEditPrice = (index, currentPrice) => {
     setEditingPrice(index);
-    setTempPrice(currentPrice.toString());
+    setTempPrice((currentPrice || 0).toString());
   };
 
   const handleSavePrice = (index) => {
@@ -27,9 +29,28 @@ const OrderItemsTable = ({
     setTempPrice('');
   };
 
-  const handleCancelEdit = () => {
+  const handleCancelEditPrice = () => {
     setEditingPrice(null);
     setTempPrice('');
+  };
+
+  const handleStartEditQuantity = (index, currentQuantity) => {
+    setEditingQuantity(index);
+    setTempQuantity((currentQuantity || 1).toString());
+  };
+
+  const handleSaveQuantity = (index) => {
+    const newQuantity = parseInt(tempQuantity);
+    if (newQuantity > 0) {
+      onUpdateQuantity(index, newQuantity);
+    }
+    setEditingQuantity(null);
+    setTempQuantity('');
+  };
+
+  const handleCancelEditQuantity = () => {
+    setEditingQuantity(null);
+    setTempQuantity('');
   };
 
   if (orderItems.length === 0) {
@@ -37,42 +58,62 @@ const OrderItemsTable = ({
   }
 
   return (
-    <div className="border rounded-lg">
+    <div className="border rounded-lg overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Product</TableHead>
-            <TableHead>Quantity</TableHead>
-            <TableHead>Unit Price</TableHead>
-            <TableHead>Total</TableHead>
-            <TableHead className="w-12"></TableHead>
+            <TableHead className="w-[30%]">Product</TableHead>
+            <TableHead className="w-[15%]">Quantity</TableHead>
+            <TableHead className="w-[20%]">Unit Price</TableHead>
+            <TableHead className="w-[20%]">Total</TableHead>
+            <TableHead className="w-[15%]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {orderItems.map((item, index) => (
             <TableRow key={index}>
-              <TableCell>{item.productName}</TableCell>
+              <TableCell>{item.productName || item.product?.name || 'Unknown Product'}</TableCell>
               <TableCell>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onUpdateQuantity(index, item.quantity - 1)}
-                    disabled={item.quantity <= 1}
-                  >
-                    <MinusCircle className="h-4 w-4" />
-                  </Button>
-                  <span className="w-8 text-center">{item.quantity}</span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onUpdateQuantity(index, item.quantity + 1)}
-                  >
-                    <PlusCircle className="h-4 w-4" />
-                  </Button>
-                </div>
+                {editingQuantity === index ? (
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="number"
+                      value={tempQuantity}
+                      onChange={(e) => setTempQuantity(e.target.value)}
+                      className="w-20 px-2 py-1 border rounded text-sm"
+                      min="1"
+                      step="1"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleSaveQuantity(index)}
+                    >
+                      <Check className="h-3 w-3 text-green-600" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelEditQuantity}
+                    >
+                      <XIcon className="h-3 w-3 text-red-600" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium">{item.quantity || 0}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleStartEditQuantity(index, item.quantity)}
+                    >
+                      <Edit2 className="h-3 w-3 text-gray-500" />
+                    </Button>
+                  </div>
+                )}
               </TableCell>
               <TableCell>
                 {editingPrice === index ? (
@@ -97,19 +138,19 @@ const OrderItemsTable = ({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={handleCancelEdit}
+                      onClick={handleCancelEditPrice}
                     >
                       <XIcon className="h-3 w-3 text-red-600" />
                     </Button>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-2">
-                    <span>KES {item.unitPrice.toLocaleString()}</span>
+                    <span>KES {item.unitPrice ? item.unitPrice.toLocaleString() : '0'}</span>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleStartEditPrice(index, item.unitPrice)}
+                      onClick={() => handleStartEditPrice(index, item.unitPrice || 0)}
                     >
                       <Edit2 className="h-3 w-3 text-gray-500" />
                     </Button>
@@ -121,7 +162,7 @@ const OrderItemsTable = ({
                   </div>
                 )}
               </TableCell>
-              <TableCell>KES {(item.quantity * item.unitPrice).toLocaleString()}</TableCell>
+              <TableCell>KES {((item.quantity || 0) * (item.unitPrice || 0)).toLocaleString()}</TableCell>
               <TableCell>
                 <Button
                   type="button"

@@ -4,6 +4,7 @@ const {
   getOrder,
   createOrder,
   updateOrder,
+  deleteOrder,
   markOrderReturned,
   requestDiscount,
   approveDiscount,
@@ -46,5 +47,6 @@ router.put('/:id/payment', updatePayment);
 
 // Admin only routes
 router.put('/:id/discount/approve', admin, approveDiscount);
+router.delete('/:id', admin, deleteOrder);
 
 module.exports = router; 

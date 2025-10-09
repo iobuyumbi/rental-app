@@ -211,9 +211,9 @@ const getInventoryStatus = asyncHandler(async (req, res) => {
     totalUnderRepair: 0,
     categories: {},
     conditionBreakdown: {
-      Good: 0,
-      Fair: 0,
-      'Needs Repair': 0
+      good: 0,
+      fair: 0,
+      needs_repair: 0
     }
   };
   
@@ -242,7 +242,7 @@ const getInventoryStatus = asyncHandler(async (req, res) => {
   }
   
   // Count products under repair
-  const productsUnderRepair = products.filter(p => p.condition === 'Needs Repair');
+  const productsUnderRepair = products.filter(p => p.condition === 'needs_repair');
   inventoryStatus.totalUnderRepair = productsUnderRepair.length;
   
   res.json({
@@ -266,7 +266,7 @@ const getOverdueReturns = asyncHandler(async (req, res) => {
   
   const overdueData = overdueOrders.map(order => {
     const overdueDays = Math.ceil((currentDate - order.expectedReturnDate) / (1000 * 60 * 60 * 24));
-    const estimatedPenalty = overdueDays * 50; // $50 per day
+    const estimatedPenalty = overdueDays * 50; // KES 50 per day
     
     return {
       orderId: order._id,
@@ -294,4 +294,4 @@ module.exports = {
   getWorkerRemunerationSummary,
   getInventoryStatus,
   getOverdueReturns
-}; 
+};

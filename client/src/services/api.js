@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { workerTasksAPI } from '../api/workerTasksAPI';
 import { toast } from 'sonner';
 
 const MAX_RETRIES = 2;
@@ -178,25 +179,30 @@ export const authAPI = {
 export const inventoryAPI = {
   // Categories
   categories: {
-    get: () => api.get('/inventory/categories').then(response => response.data?.data || response.data).catch(handleError),
-    create: (categoryData) => api.post('/inventory/categories', categoryData).then(response => response.data?.data || response.data).catch(handleError),
-    update: (id, categoryData) => api.put(`/inventory/categories/${id}`, categoryData).then(response => response.data?.data || response.data).catch(handleError),
-    delete: (id) => api.delete(`/inventory/categories/${id}`).then(response => response.data?.data || response.data).catch(handleError)
+    get: () => api.get('/inventory/categories').then(handleResponse).catch(handleError),
+    create: (categoryData) => api.post('/inventory/categories', categoryData).then(handleResponse).catch(handleError),
+    update: (id, categoryData) => api.put(`/inventory/categories/${id}`, categoryData).then(handleResponse).catch(handleError),
+    delete: (id) => api.delete(`/inventory/categories/${id}`).then(handleResponse).catch(handleError)
   },
   
   // Products
   products: {
-    get: () => api.get('/inventory/products').then(response => response.data?.data || response.data).catch(handleError),
-    create: (productData) => api.post('/inventory/products', productData).then(response => response.data?.data || response.data).catch(handleError),
-    update: (id, productData) => api.put(`/inventory/products/${id}`, productData).then(response => response.data?.data || response.data).catch(handleError),
-    delete: (id) => api.delete(`/inventory/products/${id}`).then(response => response.data?.data || response.data).catch(handleError)
+    get: () => api.get('/inventory/products').then(handleResponse).catch(handleError),
+    getById: (id) => api.get(`/inventory/products/${id}`).then(handleResponse).catch(handleError),
+    create: (productData) => api.post('/inventory/products', productData).then(handleResponse).catch(handleError),
+    update: (id, productData) => api.put(`/inventory/products/${id}`, productData).then(handleResponse).catch(handleError),
+    delete: (id) => api.delete(`/inventory/products/${id}`).then(handleResponse).catch(handleError)
   },
+  
+  // Convenience methods for inventory management
+  getProduct: (id) => api.get(`/inventory/products/${id}`).then(handleResponse).catch(handleError),
+  updateProduct: (id, productData) => api.put(`/inventory/products/${id}`, productData).then(handleResponse).catch(handleError),
   
   // Available products (heavily cached)
   getAvailableProducts: () => 
     api.get('/inventory/products/available', {
       headers: { 'x-cache-max-age': '300000' } // 5 minutes
-    }).then(response => response.data?.data || response.data).catch(handleError)
+    }).then(handleResponse).catch(handleError)
 };
 
 // Orders API
@@ -210,6 +216,7 @@ export const ordersAPI = {
   getOrder: (id) => api.get(`/orders/${id}`).then(handleResponse).catch(handleError),
   createOrder: (orderData) => api.post('/orders', orderData).then(handleResponse).catch(handleError),
   updateOrder: (id, orderData) => api.put(`/orders/${id}`, orderData).then(handleResponse).catch(handleError),
+  deleteOrder: (id) => api.delete(`/orders/${id}`).then(handleResponse).catch(handleError),
   markReturned: (id) => api.put(`/orders/${id}/return`).then(handleResponse).catch(handleError),
   requestDiscount: (id, discountData) => api.post(`/orders/${id}/discount/request`, discountData).then(handleResponse).catch(handleError),
   approveDiscount: (id, approvalData) => api.put(`/orders/${id}/discount/approve`, approvalData).then(handleResponse).catch(handleError),
@@ -228,29 +235,27 @@ export const ordersAPI = {
 export const workersAPI = {
   // Workers management
   workers: {
-    get: () => api.get('/workers').then(response => response.data?.data || response.data).catch(handleError),
-    create: (data) => api.post('/workers', data).then(response => response.data?.data || response.data).catch(handleError),
-    update: (id, data) => api.put(`/workers/${id}`, data).then(response => response.data?.data || response.data).catch(handleError)
+    get: () => api.get('/workers').then(handleResponse).catch(handleError),
+    create: (data) => api.post('/workers', data).then(handleResponse).catch(handleError),
+    update: (id, data) => api.put(`/workers/${id}`, data).then(handleResponse).catch(handleError)
   },
   // Attendance tracking
   attendance: {
-    list: () => api.get('/workers/attendance').then(response => response.data?.data || response.data).catch(handleError),
-    record: (data) => api.post('/workers/attendance', data).then(response => response.data?.data || response.data).catch(handleError)
+    list: () => api.get('/workers/attendance').then(handleResponse).catch(handleError),
+    record: (data) => api.post('/workers/attendance', data).then(handleResponse).catch(handleError)
   },
   // Remuneration calculation
   remuneration: {
     calculate: (workerId, params = {}) => {
-      const query = new URLSearchParams(params).toString();
-      return api.get(`/workers/${workerId}/remuneration?${query}`);
+      return api.get(`/workers/${workerId}/remuneration`, { params }).then(handleResponse).catch(handleError);
     }
   },
   // Summary data
-  getSummary: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return api.get('/workers/remuneration-summary', {
+  getSummary: (workerId, params = {}) => {
+    return api.get(`/task-completions/worker/${workerId}/summary`, {
       params,
       timeout: 10000
-    });
+    }).then(handleResponse).catch(handleError);
   }
 };
 
@@ -258,15 +263,13 @@ export const workersAPI = {
 // Lunch Allowance API
 export const lunchAllowanceAPI = {
   getAll: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return api.get(`/lunch-allowances?${query}`).then(response => response.data?.data || response.data).catch(handleError);
+    return api.get('/lunch-allowances', { params }).then(handleResponse).catch(handleError);
   },
-  generate: (data) => api.post('/lunch-allowances/generate', data).then(response => response.data?.data || response.data).catch(handleError),
-  update: (id, data) => api.put(`/lunch-allowances/${id}`, data).then(response => response.data?.data || response.data).catch(handleError),
-  delete: (id) => api.delete(`/lunch-allowances/${id}`).then(response => response.data?.data || response.data).catch(handleError),
+  generate: (data) => api.post('/lunch-allowances/generate', data).then(handleResponse).catch(handleError),
+  update: (id, data) => api.put(`/lunch-allowances/${id}`, data).then(handleResponse).catch(handleError),
+  delete: (id) => api.delete(`/lunch-allowances/${id}`).then(handleResponse).catch(handleError),
   getSummary: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return api.get(`/lunch-allowances/summary?${query}`).then(response => response.data?.data || response.data).catch(handleError);
+    return api.get('/lunch-allowances/summary', { params }).then(handleResponse).catch(handleError);
   }
 };
 
@@ -274,32 +277,32 @@ export const lunchAllowanceAPI = {
 export const transactionsAPI = {
   getLaborCosts: (params) => api.get('/transactions/labor', { params }).then(handleResponse).catch(handleError),
   getLunchAllowanceCosts: (params) => api.get('/transactions/lunch-allowances', { params }).then(handleResponse).catch(handleError),
-  getPurchases: (dateRange) => api.get('/transactions/purchases', { params: dateRange }),
-  recordPurchase: (data) => api.post('/transactions/purchases', data),
-  getRepairs: (dateRange) => api.get('/transactions/repairs', { params: dateRange }),
-  recordRepair: (data) => api.post('/transactions/repairs', data),
-  updateRepair: (id, data) => api.put(`/transactions/repairs/${id}`, data),
-  getTransactionSummary: (dateRange) => api.get('/transactions/summary', { params: dateRange })
+  getPurchases: (dateRange) => api.get('/transactions/purchases', { params: dateRange }).then(handleResponse).catch(handleError),
+  recordPurchase: (data) => api.post('/transactions/purchases', data).then(handleResponse).catch(handleError),
+  getRepairs: (dateRange) => api.get('/transactions/repairs', { params: dateRange }).then(handleResponse).catch(handleError),
+  recordRepair: (data) => api.post('/transactions/repairs', data).then(handleResponse).catch(handleError),
+  updateRepair: (id, data) => api.put(`/transactions/repairs/${id}`, data).then(handleResponse).catch(handleError),
+  getTransactionSummary: (dateRange) => api.get('/transactions/summary', { params: dateRange }).then(handleResponse).catch(handleError)
 };
 
 // Task Rate API
 export const taskRateAPI = {
-  getAll: (params) => api.get('/task-rates', { params }),
-  getById: (id) => api.get(`/task-rates/${id}`),
-  create: (data) => api.post('/task-rates', data),
-  update: (id, data) => api.put(`/task-rates/${id}`, data),
-  delete: (id) => api.delete(`/task-rates/${id}`),
-  getByType: (taskType) => api.get(`/task-rates/by-type/${taskType}`)
+  getAll: (params) => api.get('/task-rates', { params }).then(handleResponse).catch(handleError),
+  getById: (id) => api.get(`/task-rates/${id}`).then(handleResponse).catch(handleError),
+  create: (data) => api.post('/task-rates', data).then(handleResponse).catch(handleError),
+  update: (id, data) => api.put(`/task-rates/${id}`, data).then(handleResponse).catch(handleError),
+  delete: (id) => api.delete(`/task-rates/${id}`).then(handleResponse).catch(handleError),
+  getByType: (taskType) => api.get(`/task-rates/by-type/${taskType}`).then(handleResponse).catch(handleError)
 };
 
 // Task Completion API
 export const taskCompletionAPI = {
-  getAll: (params) => api.get('/task-completions', { params }),
-  getById: (id) => api.get(`/task-completions/${id}`),
-  record: (data) => api.post('/task-completions', data),
-  update: (id, data) => api.put(`/task-completions/${id}`, data),
-  verify: (id, notes) => api.put(`/task-completions/${id}/verify`, { notes }),
-  getWorkerSummary: (workerId, params) => api.get(`/task-completions/worker/${workerId}/summary`, { params })
+  getAll: (params) => api.get('/task-completions', { params }).then(handleResponse).catch(handleError),
+  getById: (id) => api.get(`/task-completions/${id}`).then(handleResponse).catch(handleError),
+  record: (data) => api.post('/task-completions', data).then(handleResponse).catch(handleError),
+  update: (id, data) => api.put(`/task-completions/${id}`, data).then(handleResponse).catch(handleError),
+  verify: (id, data) => api.put(`/task-completions/${id}/verify`, data).then(handleResponse).catch(handleError),
+  getWorkerSummary: (workerId, params) => api.get(`/task-completions/worker/${workerId}/summary`, { params }).then(handleResponse).catch(handleError)
 };
 
 // Reports API
@@ -328,12 +331,53 @@ export const reportsAPI = {
       headers: { 'x-cache-max-age': '300000' } // 5 minutes
     }).then(handleResponse).catch(handleError),
     
-  // Worker reports
-  workerRemuneration: (params = {}) => {
-    return api.get('/reports/worker-remuneration', {
-      params,
-      timeout: 10000
-    });
+  // Worker reports - Use worker tasks API instead of non-existent reports endpoint
+  workerRemuneration: async (params = {}) => {
+    try {
+      // Check if we have the workerTasksAPI available
+      if (typeof workerTasksAPI !== 'undefined' && workerTasksAPI.tasks && workerTasksAPI.tasks.list) {
+        console.log('Using workerTasksAPI for remuneration data');
+        const response = await workerTasksAPI.tasks.list(params);
+        const tasks = response?.data || response || [];
+        
+        if (!Array.isArray(tasks)) {
+          console.warn('WorkerTasksAPI returned non-array data:', tasks);
+          return [];
+        }
+        
+        return processTasksForRemuneration(tasks);
+      }
+      
+      // Fallback: try the direct API call
+      console.log('Trying direct /worker-tasks API call');
+      const response = await api.get('/worker-tasks', {
+        params: {
+          startDate: params.startDate,
+          endDate: params.endDate,
+          ...params
+        },
+        timeout: 10000
+      });
+      
+      const tasks = response?.data || response || [];
+      
+      // Debug: Log the response to see what we're getting
+      console.log('Worker tasks API response:', response);
+      console.log('Tasks data:', tasks);
+      console.log('Is tasks an array?', Array.isArray(tasks));
+      
+      // Ensure tasks is an array
+      if (!Array.isArray(tasks)) {
+        console.warn('Tasks is not an array, returning empty remuneration data');
+        return [];
+      }
+      
+      return processTasksForRemuneration(tasks);
+    } catch (error) {
+      console.error('Error fetching worker remuneration:', error);
+      // Return empty array instead of throwing
+      return [];
+    }
   },
     
   // Inventory status
@@ -347,9 +391,57 @@ export const reportsAPI = {
     api.get('/reports/overdue-returns', {
       params,
       headers: { 'x-cache-max-age': '300000' } // 5 minutes
-    }).then(handleResponse).catch(handleError),
-    
+    }).then(handleResponse).catch(handleError)
+  
   // Note: Export and analytics endpoints are not implemented on the server
+};
+
+// Helper function to process tasks for remuneration calculation
+const processTasksForRemuneration = (tasks) => {
+  try {
+    // Process tasks to create remuneration summary
+    const remunerationSummary = {};
+    
+    tasks.forEach(task => {
+      if (task.workers && Array.isArray(task.workers)) {
+        task.workers.forEach(workerEntry => {
+          if (workerEntry.present && workerEntry.worker) {
+            const workerId = workerEntry.worker._id || workerEntry.worker;
+            const workerName = workerEntry.worker.name || workerEntry.worker;
+            
+            if (!remunerationSummary[workerId]) {
+              remunerationSummary[workerId] = {
+                workerId,
+                workerName,
+                totalAmount: 0,
+                taskCount: 0,
+                tasks: []
+              };
+            }
+            
+            // Calculate worker's share of the task amount
+            const presentWorkers = task.workers.filter(w => w.present).length;
+            const workerShare = presentWorkers > 0 ? task.taskAmount / presentWorkers : 0;
+            
+            remunerationSummary[workerId].totalAmount += workerShare;
+            remunerationSummary[workerId].taskCount += 1;
+            remunerationSummary[workerId].tasks.push({
+              taskId: task._id,
+              taskType: task.taskType,
+              orderId: task.order?._id || task.order,
+              amount: workerShare,
+              date: task.completedAt || task.createdAt
+            });
+          }
+        });
+      }
+    });
+    
+    return Object.values(remunerationSummary);
+  } catch (error) {
+    console.error('Error processing tasks for remuneration:', error);
+    return [];
+  }
 };
 
 export default api;

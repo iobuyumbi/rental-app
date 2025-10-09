@@ -5,6 +5,7 @@ import Dashboard from "./pages/Dashboard";
 import InventoryPage from "./pages/InventoryPage";
 import OrdersPage from "./pages/OrdersPage";
 import WorkersPage from "./pages/WorkersPage";
+import WorkerTasksPage from "./pages/WorkerTasksPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import ReportsPage from "./pages/ReportsPage";
 import UsersPage from "./pages/UsersPage";
@@ -12,6 +13,8 @@ import LoginPage from "./pages/LoginPage";
 import ClientsPage from "./pages/ClientsPage";
 import TaskManagementPage from "./pages/TaskManagementPage";
 import ViolationsPage from "./pages/ViolationsPage";
+import TestConnection from "./pages/TestConnection";
+import InventoryDebug from "./components/debug/InventoryDebug";
 
 const ProtectedRoute = ({ requireAdmin = false }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
@@ -47,10 +50,13 @@ const App = () => {
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/clients" element={<ClientsPage />} />
         <Route path="/workers" element={<WorkersPage />} />
+        <Route path="/worker-tasks" element={<WorkerTasksPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/task-management" element={<TaskManagementPage />} />
         <Route path="/violations" element={<ViolationsPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/test-connection" element={<TestConnection />} />
+        <Route path="/debug/inventory" element={<InventoryDebug />} />
       </Route>
 
       <Route element={<ProtectedRoute requireAdmin />}>

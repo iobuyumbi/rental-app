@@ -153,7 +153,22 @@ const DataTable = ({
           <TableRow>
             {columns.map((column, index) => (
               <TableHead key={column.key || column.accessor || index} className={column.className}>
-                {column.header || column.label}
+                {typeof (column.header || column.label) === 'function' 
+                  ? (column.header || column.label)({ 
+                      table: { 
+                        getFilteredRowModel: () => ({ rows: filteredData }),
+                        getRowModel: () => ({ rows: data }),
+                        getAllColumns: () => columns,
+                        getState: () => ({ columnFilters: [], sorting: [] })
+                      },
+                      column: {
+                        id: column.key || column.accessor,
+                        getFilterValue: () => '',
+                        setFilterValue: () => {}
+                      }
+                    }) 
+                  : (column.header || column.label)
+                }
               </TableHead>
             ))}
             {(onEdit || onDelete || onView || actions.length > 0) && (

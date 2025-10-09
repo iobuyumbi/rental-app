@@ -1,0 +1,52 @@
+// MongoDB Shell Commands to Delete Test Orders Manually
+
+// 1. First, connect to your MongoDB:
+// mongosh "mongodb+srv://iobuyumbi:0101@cluster0.vrfaubu.mongodb.net/rental-app"
+
+// 2. List all orders to see their IDs:
+db.orders.find().pretty()
+
+// 3. To delete a specific order by ID (replace YOUR_ORDER_ID with actual ID):
+db.orders.deleteOne({ _id: ObjectId("YOUR_ORDER_ID") })
+
+// 4. To delete ALL orders created today:
+db.orders.deleteMany({ 
+  createdAt: { 
+    $gte: new Date(new Date().setHours(0,0,0,0)) 
+  } 
+})
+
+// 5. To delete order items for a specific order:
+db.orderitems.deleteMany({ order: ObjectId("YOUR_ORDER_ID") })
+
+// 6. To delete ALL order items:
+db.orderitems.deleteMany({})
+
+// 7. To delete ALL orders (BE CAREFUL!):
+db.orders.deleteMany({})
+
+// RECOMMENDED: Delete today's test orders and their items:
+// First get today's orders
+var todayOrders = db.orders.find({ 
+  createdAt: { 
+    $gte: new Date(new Date().setHours(0,0,0,0)) 
+  } 
+}).toArray()
+
+// See the order IDs
+todayOrders.forEach(order => print(order._id))
+
+// Delete the order items for these orders
+todayOrders.forEach(order => {
+  db.orderitems.deleteMany({ order: order._id })
+  print("Deleted items for order: " + order._id)
+})
+
+// Delete the orders
+db.orders.deleteMany({ 
+  createdAt: { 
+    $gte: new Date(new Date().setHours(0,0,0,0)) 
+  } 
+})
+
+print("Done!")

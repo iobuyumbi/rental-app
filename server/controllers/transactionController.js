@@ -86,10 +86,10 @@ const recordRepair = asyncHandler(async (req, res) => {
     notes
   });
   
-  // Update product condition to 'Good' when repair is completed
+  // Update product condition to 'good' when repair is completed
   const productDoc = await Product.findById(product);
-  if (productDoc && productDoc.condition === 'Needs Repair') {
-    productDoc.condition = 'Good';
+  if (productDoc && productDoc.condition === 'needs_repair') {
+    productDoc.condition = 'good';
     await productDoc.save();
   }
   
@@ -161,8 +161,8 @@ const updateRepair = asyncHandler(async (req, res) => {
   // Update product condition when repair is completed
   if (status === 'Completed') {
     const product = await Product.findById(repair.product);
-    if (product && product.condition === 'Needs Repair') {
-      product.condition = 'Good';
+    if (product && product.condition === 'needs_repair') {
+      product.condition = 'good';
       await product.save();
     }
   }

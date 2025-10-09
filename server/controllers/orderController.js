@@ -33,10 +33,23 @@ const getOrders = asyncHandler(async (req, res) => {
     .populate('discountApprovedBy', 'name')
     .sort({ orderDate: -1 });
   
+  // Fetch items for each order
+  const ordersWithItems = await Promise.all(
+    orders.map(async (order) => {
+      const items = await OrderItem.find({ order: order._id })
+        .populate('product', 'name type rentalPrice');
+      
+      const orderObj = order.toObject();
+      orderObj.items = items;
+      
+      return orderObj;
+    })
+  );
+  
   res.json({
     success: true,
-    count: orders.length,
-    data: orders
+    count: ordersWithItems.length,
+    data: ordersWithItems
   });
 });
 
@@ -72,9 +85,7 @@ const getOrder = asyncHandler(async (req, res) => {
 // @route   POST /api/orders
 // @access  Private
 const createOrder = asyncHandler(async (req, res) => {
-  console.log('Creating order with data:', req.body);
-  
-  const { client, rentalStartDate, rentalEndDate, items, notes } = req.body;
+  const { client, rentalStartDate, rentalEndDate, items, notes, status, amountPaid } = req.body;
   
   // Validate required fields
   if (!client) {
@@ -141,6 +152,8 @@ const createOrder = asyncHandler(async (req, res) => {
     rentalEndDate,
     expectedReturnDate,
     totalAmount,
+    amountPaid: amountPaid || 0,
+    status: status || 'pending',
     notes
   });
   
@@ -158,9 +171,11 @@ const createOrder = asyncHandler(async (req, res) => {
       unitPriceAtTimeOfRental: product.rentalPrice
     });
     
-    // Update product rented quantity
-    product.quantityRented += quantity;
-    await product.save();
+    // Update product rented quantity only if order is confirmed or in_progress
+    if (order.status === 'confirmed' || order.status === 'in_progress') {
+      product.quantityRented += quantity;
+      await product.save();
+    }
   }
   
   const populatedOrder = await Order.findById(order._id)
@@ -184,6 +199,76 @@ const updateOrder = asyncHandler(async (req, res) => {
     throw new Error('Order not found');
   }
   
+  const oldStatus = order.status;
+  const newStatus = req.body.status;
+  
+  // Handle inventory changes when status changes
+  if (newStatus && newStatus !== oldStatus) {
+    const orderItems = await OrderItem.find({ order: order._id });
+    
+    // If changing from pending to confirmed/in_progress, reduce inventory
+    if (oldStatus === 'pending' && (newStatus === 'confirmed' || newStatus === 'in_progress')) {
+      for (const item of orderItems) {
+        const product = await Product.findById(item.product);
+        if (product) {
+          product.quantityRented += item.quantityRented;
+          await product.save();
+        }
+      }
+    }
+    
+    // If changing from confirmed/in_progress to completed, restore inventory
+    if ((oldStatus === 'confirmed' || oldStatus === 'in_progress') && newStatus === 'completed') {
+      for (const item of orderItems) {
+        const product = await Product.findById(item.product);
+        if (product) {
+          product.quantityRented = Math.max(0, product.quantityRented - item.quantityRented);
+          await product.save();
+        }
+      }
+    }
+    
+    // If cancelling an order that was confirmed/in_progress, restore inventory
+    if ((oldStatus === 'confirmed' || oldStatus === 'in_progress') && newStatus === 'cancelled') {
+      for (const item of orderItems) {
+        const product = await Product.findById(item.product);
+        if (product) {
+          product.quantityRented = Math.max(0, product.quantityRented - item.quantityRented);
+          await product.save();
+        }
+      }
+    }
+  }
+
+  // Handle updated items if provided
+  if (req.body.items && req.body.items.length > 0) {
+    // First, remove existing order items
+    await OrderItem.deleteMany({ order: order._id });
+    
+    // Create new order items with updated information
+    let totalAmount = 0;
+    for (const item of req.body.items) {
+      const productId = item.productId || item.product;
+      const quantity = item.quantity || item.quantityRented || 1;
+      const unitPrice = item.unitPrice || item.unitPriceAtTimeOfRental;
+      
+      // Create new order item with custom price if modified
+      await OrderItem.create({
+        order: order._id,
+        product: productId,
+        quantityRented: quantity,
+        unitPriceAtTimeOfRental: unitPrice,
+        priceModifiedBy: item.priceModifiedBy,
+        priceModifiedAt: item.priceModifiedAt
+      });
+      
+      totalAmount += unitPrice * quantity;
+    }
+    
+    // Update order total amount
+    req.body.totalAmount = totalAmount;
+  }
+  
   order = await Order.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true
@@ -191,9 +276,17 @@ const updateOrder = asyncHandler(async (req, res) => {
     .populate('client', 'name contactPerson phone email company')
     .populate('discountApprovedBy', 'name');
   
+  // Get updated order items
+  const orderItems = await OrderItem.find({ order: order._id })
+    .populate('product', 'name type rentalPrice');
+  
+  // Add items to response
+  const orderWithItems = order.toObject();
+  orderWithItems.items = orderItems;
+  
   res.json({
     success: true,
-    data: order
+    data: orderWithItems
   });
 });
 
@@ -619,11 +712,51 @@ const exportViolations = asyncHandler(async (req, res) => {
   res.send(csvContent);
 });
 
+// @desc    Delete order
+// @route   DELETE /api/orders/:id
+// @access  Private/Admin
+const deleteOrder = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id);
+
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
+  }
+
+  // Delete all order items associated with this order
+  const orderItems = await OrderItem.find({ order: order._id });
+  
+  // Restore product quantities before deleting (only if order is not returned)
+  if (order.status !== 'returned' && orderItems.length > 0) {
+    for (const item of orderItems) {
+      const product = await Product.findById(item.product);
+      if (product && item.quantityRented > 0) {
+        // Only subtract if it won't make quantityRented negative
+        const newQuantityRented = Math.max(0, product.quantityRented - item.quantityRented);
+        product.quantityRented = newQuantityRented;
+        await product.save();
+      }
+    }
+  }
+  
+  // Delete order items
+  await OrderItem.deleteMany({ order: order._id });
+  
+  // Delete the order
+  await Order.findByIdAndDelete(req.params.id);
+
+  res.json({
+    success: true,
+    message: 'Order deleted successfully'
+  });
+});
+
 module.exports = {
   getOrders,
   getOrder,
   createOrder,
   updateOrder,
+  deleteOrder,
   markOrderReturned,
   requestDiscount,
   approveDiscount,
@@ -636,4 +769,4 @@ module.exports = {
   bulkResolveViolations,
   deleteViolation,
   exportViolations
-}; 
+};

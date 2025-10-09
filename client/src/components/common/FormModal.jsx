@@ -26,7 +26,7 @@ const FormModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange || (() => {})}>
-      <DialogContent className={`max-w-[98vw] w-full h-[98vh] max-h-[98vh] overflow-y-auto ${className}`}>
+      <DialogContent className={`sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[1200px] w-full max-h-[90vh] overflow-y-auto ${className}`}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>

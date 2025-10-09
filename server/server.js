@@ -14,6 +14,7 @@ console.log('NODE_ENV:', process.env.NODE_ENV || 'not set');
 console.log('PORT:', process.env.PORT || 'not set');
 console.log('MONGO_URI:', process.env.MONGO_URI ? 'set' : 'not set');
 console.log('JWT_SECRET:', process.env.JWT_SECRET ? 'set' : 'not set');
+console.log('CORS_ORIGIN:', process.env.CORS_ORIGIN || 'not set');
 
 // Import routes
 const userRoutes = require("./routes/usersRoutes");
@@ -26,6 +27,7 @@ const reportRoutes = require("./routes/reportsRoutes");
 const taskRateRoutes = require("./routes/taskRateRoutes");
 const taskCompletionRoutes = require("./routes/taskCompletionRoutes");
 const lunchAllowanceRoutes = require("./routes/lunchAllowanceRoutes");
+const workerTaskRoutes = require("./routes/workerTaskRoutes");
 
 // Import middleware
 const errorHandler = require("./middleware/errorHandler");
@@ -42,8 +44,20 @@ connectDB().then(() => {
 });
 
 // Middleware - CORS configuration for development
+const parsedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+console.log('✅ Allowed CORS origins:', parsedOrigins);
+
 const corsOptions = {
-  origin: true, // Allow all origins during development
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    if (parsedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'), false);
+  },
   credentials: true, // Allow credentials (cookies, authorization headers, etc.)
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control', 'x-cache-max-age', 'x-offline-key'],
@@ -70,6 +84,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/task-rates", taskRateRoutes);
 app.use("/api/task-completions", taskCompletionRoutes);
 app.use("/api/lunch-allowances", lunchAllowanceRoutes);
+app.use("/api/worker-tasks", workerTaskRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

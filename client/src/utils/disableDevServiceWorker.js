@@ -4,7 +4,7 @@
  */
 
 export const disableDevServiceWorker = async () => {
-  if (process.env.NODE_ENV !== 'production' && 'serviceWorker' in navigator) {
+  if (import.meta.env.MODE !== 'production' && 'serviceWorker' in navigator) {
     try {
       // Get all service worker registrations and unregister them
       const registrations = await navigator.serviceWorker.getRegistrations();

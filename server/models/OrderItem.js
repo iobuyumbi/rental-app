@@ -20,10 +20,18 @@ const orderItemSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Unit price is required'],
     min: [0, 'Unit price cannot be negative']
+  },
+  priceModifiedBy: {
+    type: String,
+    trim: true
+  },
+  priceModifiedAt: {
+    type: Date
   }
 }, {
   timestamps: true
 });
+
 
 // Virtual for total price of this item
 orderItemSchema.virtual('totalPrice').get(function() {
@@ -34,4 +42,4 @@ orderItemSchema.virtual('totalPrice').get(function() {
 orderItemSchema.set('toJSON', { virtuals: true });
 orderItemSchema.set('toObject', { virtuals: true });
 
-module.exports = mongoose.model('OrderItem', orderItemSchema); 
+module.exports = mongoose.model('OrderItem', orderItemSchema);
