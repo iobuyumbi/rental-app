@@ -8,12 +8,16 @@ const OrderItemsTable = ({
   onUpdateQuantity, 
   onRemoveItem,
   onUpdateUnitPrice,
-  currentUser
+  onUpdateDaysUsed,
+  currentUser,
+  defaultChargeableDays = 1
 }) => {
   const [editingPrice, setEditingPrice] = useState(null);
   const [tempPrice, setTempPrice] = useState('');
   const [editingQuantity, setEditingQuantity] = useState(null);
   const [tempQuantity, setTempQuantity] = useState('');
+  const [editingDays, setEditingDays] = useState(null);
+  const [tempDays, setTempDays] = useState('');
 
   const handleStartEditPrice = (index, currentPrice) => {
     setEditingPrice(index);
@@ -53,6 +57,25 @@ const OrderItemsTable = ({
     setTempQuantity('');
   };
 
+  const handleStartEditDays = (index, currentDays) => {
+    setEditingDays(index);
+    setTempDays((currentDays || defaultChargeableDays).toString());
+  };
+
+  const handleSaveDays = (index) => {
+    const newDays = parseInt(tempDays);
+    if (newDays > 0) {
+      onUpdateDaysUsed(index, newDays);
+    }
+    setEditingDays(null);
+    setTempDays('');
+  };
+
+  const handleCancelEditDays = () => {
+    setEditingDays(null);
+    setTempDays('');
+  };
+
   if (orderItems.length === 0) {
     return null;
   }
@@ -62,11 +85,12 @@ const OrderItemsTable = ({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[30%]">Product</TableHead>
-            <TableHead className="w-[15%]">Quantity</TableHead>
-            <TableHead className="w-[20%]">Unit Price</TableHead>
-            <TableHead className="w-[20%]">Total</TableHead>
-            <TableHead className="w-[15%]"></TableHead>
+            <TableHead className="w-[25%]">Product</TableHead>
+            <TableHead className="w-[12%]">Quantity</TableHead>
+            <TableHead className="w-[15%]">Unit Price/Day</TableHead>
+            <TableHead className="w-[12%]">Days Used</TableHead>
+            <TableHead className="w-[18%]">Total</TableHead>
+            <TableHead className="w-[8%]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -162,7 +186,61 @@ const OrderItemsTable = ({
                   </div>
                 )}
               </TableCell>
-              <TableCell>KES {((item.quantity || 0) * (item.unitPrice || 0)).toLocaleString()}</TableCell>
+              
+              {/* Days Used Column */}
+              <TableCell>
+                {editingDays === index ? (
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="number"
+                      value={tempDays}
+                      onChange={(e) => setTempDays(e.target.value)}
+                      className="w-16 px-2 py-1 border rounded text-sm"
+                      min="1"
+                      step="1"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleSaveDays(index)}
+                    >
+                      <Check className="h-3 w-3 text-green-600" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelEditDays}
+                    >
+                      <XIcon className="h-3 w-3 text-red-600" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium">{item.daysUsed || defaultChargeableDays}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleStartEditDays(index, item.daysUsed)}
+                    >
+                      <Edit2 className="h-3 w-3 text-gray-500" />
+                    </Button>
+                  </div>
+                )}
+              </TableCell>
+              
+              <TableCell>
+                <div>
+                  <div className="font-medium">
+                    KES {((item.quantity || 0) * (item.unitPrice || 0) * (item.daysUsed || defaultChargeableDays)).toLocaleString()}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {item.quantity || 0} × KES {(item.unitPrice || 0).toLocaleString()} × {item.daysUsed || defaultChargeableDays} days
+                  </div>
+                </div>
+              </TableCell>
               <TableCell>
                 <Button
                   type="button"

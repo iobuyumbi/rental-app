@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -65,12 +65,16 @@ const StatusChangeModal = ({
       const endDate = new Date(order.rentalEndDate);
       const actualDateObj = new Date(actualDate);
       
-      // Calculate planned rental days
-      const plannedDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+      // Calculate planned rental period (includes setup, event, and return)
+      const plannedPeriodDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
       
-      let calculatedDays = chargeableDays || plannedDays;
+      // Default chargeable days should be much less than the full period (typically 1 for event day)
+      const defaultChargeableDays = order.defaultChargeableDays || 1;
+      let calculatedDays = chargeableDays || defaultChargeableDays;
       let adjustedAmount = order.totalAmount;
-      let dailyRate = order.totalAmount / plannedDays;
+      
+      // Calculate daily rate based on original chargeable days, not the full period
+      let dailyRate = order.totalAmount / defaultChargeableDays;
       
       // Calculate based on status change
       if (newStatus === 'completed') {
@@ -78,35 +82,36 @@ const StatusChangeModal = ({
         const actualUsageDays = Math.ceil((actualDateObj - startDate) / (1000 * 60 * 60 * 24)) + 1;
         calculatedDays = chargeableDays || actualUsageDays;
         
-        // Apply pricing rules
-        if (calculatedDays < plannedDays) {
+        // Apply pricing rules based on chargeable days vs default
+        if (calculatedDays < defaultChargeableDays) {
           // Early return - minimum 50% charge
           const minimumCharge = order.totalAmount * 0.5;
           const calculatedCharge = calculatedDays * dailyRate;
           adjustedAmount = Math.max(minimumCharge, calculatedCharge);
-        } else if (calculatedDays > plannedDays) {
-          // Late return - charge extra at 150% rate
-          const extraDays = calculatedDays - plannedDays;
+        } else if (calculatedDays > defaultChargeableDays) {
+          // Extended usage - charge extra at 150% rate
+          const extraDays = calculatedDays - defaultChargeableDays;
           adjustedAmount = order.totalAmount + (extraDays * dailyRate * 1.5);
         } else {
-          // On time - original amount
+          // Standard usage - original amount
           adjustedAmount = order.totalAmount;
         }
       } else if (newStatus === 'in_progress') {
-        // For in-progress, use planned days unless manually overridden
-        calculatedDays = chargeableDays || plannedDays;
+        // For in-progress, use default chargeable days unless manually overridden
+        calculatedDays = chargeableDays || defaultChargeableDays;
         adjustedAmount = calculatedDays * dailyRate;
       }
 
       setCalculations({
-        plannedDays,
+        plannedPeriodDays,
+        defaultChargeableDays,
         chargeableDays: calculatedDays,
         dailyRate,
         originalAmount: order.totalAmount,
         adjustedAmount,
         difference: adjustedAmount - order.totalAmount,
-        isEarlyReturn: calculatedDays < plannedDays,
-        isLateReturn: calculatedDays > plannedDays,
+        isEarlyReturn: calculatedDays < defaultChargeableDays,
+        isLateReturn: calculatedDays > defaultChargeableDays,
         actualDate: actualDate
       });
 
@@ -150,11 +155,11 @@ const StatusChangeModal = ({
     if (!calculations) return '';
     
     if (calculations.isEarlyReturn) {
-      return `Early return (${calculations.chargeableDays} of ${calculations.plannedDays} days)`;
+      return `Reduced usage (${calculations.chargeableDays} of ${calculations.defaultChargeableDays} chargeable days)`;
     } else if (calculations.isLateReturn) {
-      return `Late return (${calculations.chargeableDays} of ${calculations.plannedDays} days)`;
+      return `Extended usage (${calculations.chargeableDays} vs ${calculations.defaultChargeableDays} standard days)`;
     }
-    return `On schedule (${calculations.chargeableDays} days)`;
+    return `Standard usage (${calculations.chargeableDays} chargeable days)`;
   };
 
   if (!isOpen) return null;
@@ -167,16 +172,21 @@ const StatusChangeModal = ({
             <DollarSign className="h-5 w-5" />
             Change Order Status - #{order._id?.slice(-6).toUpperCase()}
           </DialogTitle>
+          <DialogDescription>
+            Update the order status and manage rental dates and pricing calculations
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-6">
           {/* Current Status */}
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="font-semibold mb-2">Current Status</h3>
             <Badge variant="outline">{order.status}</Badge>
             <div className="text-sm text-gray-600 mt-2">
               <div>Rental Period: {new Date(order.rentalStartDate).toLocaleDateString()} - {new Date(order.rentalEndDate).toLocaleDateString()}</div>
+              <div>Expected Return: {new Date(order.rentalEndDate).toLocaleDateString()}</div>
               <div>Original Amount: KES {order.totalAmount?.toLocaleString()}</div>
+              <div>Default Chargeable Days: {order.defaultChargeableDays || 1}</div>
             </div>
           </div>
 
@@ -243,20 +253,28 @@ const StatusChangeModal = ({
               
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <div className="font-medium">Planned Days:</div>
-                  <div>{calculations.plannedDays} days</div>
+                  <div className="font-medium">Rental Period:</div>
+                  <div>{calculations.plannedPeriodDays} days (setup + event + return)</div>
                 </div>
                 <div>
-                  <div className="font-medium">Chargeable Days:</div>
+                  <div className="font-medium">Standard Chargeable:</div>
+                  <div>{calculations.defaultChargeableDays} days (event only)</div>
+                </div>
+                <div>
+                  <div className="font-medium">Actual Chargeable:</div>
                   <div>{calculations.chargeableDays} days</div>
                 </div>
                 <div>
-                  <div className="font-medium">Daily Rate:</div>
+                  <div className="font-medium">Rate per Day:</div>
                   <div>KES {calculations.dailyRate?.toLocaleString()}</div>
                 </div>
                 <div>
                   <div className="font-medium">Original Amount:</div>
                   <div>KES {calculations.originalAmount?.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="font-medium">Calculation:</div>
+                  <div>{calculations.chargeableDays} × KES {calculations.dailyRate?.toLocaleString()}</div>
                 </div>
               </div>
 
@@ -284,18 +302,18 @@ const StatusChangeModal = ({
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={onClose}>
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
             <Button 
-              onClick={handleSubmit} 
+              type="submit"
               disabled={loading || !newStatus || (newStatus !== order.status && !actualDate)}
             >
               {loading ? 'Updating...' : 'Update Status'}
             </Button>
           </div>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

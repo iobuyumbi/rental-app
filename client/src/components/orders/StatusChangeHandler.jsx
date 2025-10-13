@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import WorkerTaskModal from '../worker-tasks/WorkerTaskModal';
 import DateValidationHandler from './DateValidationHandler';
 import { calculateTaskAmount } from './TaskCalculator';
+import { smsAPI } from '../../services/smsAPI';
 
 /**
  * StatusChangeHandler - Automatically handles worker task recording when order status changes
@@ -33,7 +34,7 @@ const StatusChangeHandler = ({
     }
   }, [newStatus, previousStatus]);
 
-  const handleStatusChangeToInProgress = () => {
+  const handleStatusChangeToInProgress = async () => {
     // Server automatically handles inventory reduction, so proceed directly to worker task recording
     const suggestedAmount = calculateTaskAmount(order.items || [], 'issuing');
     
@@ -50,6 +51,9 @@ const StatusChangeHandler = ({
 
     setTaskData(issuingTaskData);
     setShowTaskModal(true);
+    
+    // Send SMS notification for order confirmation
+    await sendSMSNotification('confirmation');
     
     toast.success('Order status updated. Please record workers who issued the items.');
   };
@@ -120,6 +124,11 @@ const StatusChangeHandler = ({
       setShowTaskModal(false);
       setTaskData(null);
       
+      // Send completion SMS if this was a receiving task (order completed)
+      if (submittedTaskData.taskType === 'receiving') {
+        await sendSMSNotification('completion');
+      }
+      
       toast.success('Worker task recorded for status change');
       
       if (onComplete) {
@@ -138,6 +147,42 @@ const StatusChangeHandler = ({
     // Still call onComplete even if user cancels
     if (onComplete) {
       onComplete();
+    }
+  };
+
+  // SMS notification handler
+  const sendSMSNotification = async (type) => {
+    try {
+      if (!order.client?.phone) {
+        console.warn('No phone number available for SMS notification');
+        return;
+      }
+
+      let result;
+      switch (type) {
+        case 'confirmation':
+          result = await smsAPI.sendOrderConfirmation(order._id);
+          toast.success('Order confirmation SMS sent to client');
+          break;
+        case 'reminder':
+          result = await smsAPI.sendRentalReminder(order._id);
+          toast.success('Rental reminder SMS sent to client');
+          break;
+        case 'completion':
+          // Send completion notification
+          const message = `Thank you! Your rental order #${order._id.slice(-6)} has been completed. Items returned successfully. We appreciate your business!`;
+          result = await smsAPI.sendSMS({
+            phoneNumber: order.client.phone,
+            message
+          });
+          toast.success('Order completion SMS sent to client');
+          break;
+        default:
+          console.warn('Unknown SMS notification type:', type);
+      }
+    } catch (error) {
+      console.error('Error sending SMS notification:', error);
+      // Don't show error toast to avoid disrupting the main workflow
     }
   };
 

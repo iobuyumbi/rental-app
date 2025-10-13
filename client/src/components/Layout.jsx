@@ -26,6 +26,8 @@ import {
   ClipboardList,
   AlertTriangle,
   DollarSign,
+  BarChart3,
+  MessageSquare,
 } from "lucide-react";
 
 const navigation = [
@@ -38,6 +40,8 @@ const navigation = [
   { name: "Task Management", href: "/task-management", icon: ClipboardList },
   { name: "Transactions", href: "/transactions", icon: Wrench },
   { name: "Violations", href: "/violations", icon: AlertTriangle },
+  { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "SMS", href: "/sms", icon: MessageSquare },
   { name: "Reports", href: "/reports", icon: FileText },
 ];
 

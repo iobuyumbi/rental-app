@@ -35,6 +35,16 @@ const ProductForm = ({
         required
         placeholder="Enter product name"
       />
+
+      <FormInput
+        label="Serial Number / Item ID"
+        name="serialNumber"
+        value={formData.serialNumber || ''}
+        onChange={(e) => onFormChange('serialNumber', e.target.value)}
+        error={errors.serialNumber}
+        placeholder="Enter unique identifier for this item"
+        help="Optional: Use for tracking specific items (e.g., CHAIR-001, TABLE-A5)"
+      />
       
       <FormSelect
         label="Category"

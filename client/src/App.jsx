@@ -13,7 +13,8 @@ import LoginPage from "./pages/LoginPage";
 import ClientsPage from "./pages/ClientsPage";
 import TaskManagementPage from "./pages/TaskManagementPage";
 import ViolationsPage from "./pages/ViolationsPage";
-import TestConnection from "./pages/TestConnection";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import SMSPage from "./pages/SMSPage";
 import InventoryDebug from "./components/debug/InventoryDebug";
 
 const ProtectedRoute = ({ requireAdmin = false }) => {
@@ -54,8 +55,9 @@ const App = () => {
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/task-management" element={<TaskManagementPage />} />
         <Route path="/violations" element={<ViolationsPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/sms" element={<SMSPage />} />
         <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/test-connection" element={<TestConnection />} />
         <Route path="/debug/inventory" element={<InventoryDebug />} />
       </Route>
 

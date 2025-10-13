@@ -44,6 +44,7 @@ const OrderForm = ({
   onAddItem,
   onUpdateQuantity,
   onUpdateUnitPrice,
+  onUpdateDaysUsed,
   onRemoveItem,
   totals,
   currentUser
@@ -249,9 +250,9 @@ const OrderForm = ({
           </div>
 
           {/* Rental Period */}
-          <div className="space-y-2">
+          <div className="space-y-4">
             <h4 className="text-md font-medium text-gray-900">Rental Period</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FormInput
                 label="Rental Start Date"
                 name="startDate"
@@ -264,7 +265,7 @@ const OrderForm = ({
               />
               
               <FormInput
-                label="Rental End Date"
+                label="Expected Return Date"
                 name="endDate"
                 type="date"
                 value={formData.endDate || ''}
@@ -273,6 +274,24 @@ const OrderForm = ({
                 required
                 className="w-full"
               />
+
+              <FormInput
+                label="Default Chargeable Days"
+                name="defaultChargeableDays"
+                type="number"
+                min="1"
+                value={formData.defaultChargeableDays || '1'}
+                onChange={(e) => onFormChange('defaultChargeableDays', parseInt(e.target.value) || 1)}
+                error={errors.defaultChargeableDays}
+                required
+                className="w-full"
+                placeholder="1"
+              />
+            </div>
+            <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+              <p><strong>Note:</strong> Rental period includes setup, event day, and return time.</p>
+              <p><strong>Default Chargeable Days:</strong> Actual usage days for pricing (typically 1 for event day only).</p>
+              <p>You can customize chargeable days per item in the products table below.</p>
             </div>
           </div>
 
@@ -308,8 +327,10 @@ const OrderForm = ({
             orderItems={orderItems}
             onUpdateQuantity={onUpdateQuantity}
             onUpdateUnitPrice={onUpdateUnitPrice}
+            onUpdateDaysUsed={onUpdateDaysUsed}
             onRemoveItem={onRemoveItem}
             currentUser={currentUser}
+            defaultChargeableDays={formData.defaultChargeableDays || 1}
           />
 
           {/* Order Summary */}

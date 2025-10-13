@@ -187,7 +187,12 @@ const OrdersPage = () => {
 
   // Calculate order totals
   const calculateTotals = () => {
-    const subtotal = orderItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    const subtotal = orderItems.reduce((sum, item) => {
+      const quantity = item.quantity || 0;
+      const unitPrice = item.unitPrice || 0;
+      const daysUsed = item.daysUsed || orderForm.values.defaultChargeableDays || 1;
+      return sum + (quantity * unitPrice * daysUsed);
+    }, 0);
     return { subtotal };
   };
 
@@ -383,7 +388,8 @@ const OrdersPage = () => {
         productId: selectedProduct._id,
         productName: selectedProduct.name,
         quantity: parseInt(quantity),
-        unitPrice: selectedProduct.rentalPrice
+        unitPrice: selectedProduct.rentalPrice,
+        daysUsed: orderForm.values.defaultChargeableDays || 1
       };
       setOrderItems([...orderItems, newItem]);
     }
@@ -407,6 +413,14 @@ const OrdersPage = () => {
     updatedItems[index].unitPrice = newPrice;
     updatedItems[index].priceModifiedBy = user?.name || 'Unknown User';
     updatedItems[index].priceModifiedAt = new Date().toISOString();
+    setOrderItems(updatedItems);
+  };
+
+  const updateItemDaysUsed = (index, newDays) => {
+    if (newDays < 1) return;
+    
+    const updatedItems = [...orderItems];
+    updatedItems[index].daysUsed = newDays;
     setOrderItems(updatedItems);
   };
 
@@ -644,6 +658,7 @@ const OrdersPage = () => {
         onAddItem={addItemToOrder}
         onUpdateQuantity={updateItemQuantity}
         onUpdateUnitPrice={updateItemUnitPrice}
+        onUpdateDaysUsed={updateItemDaysUsed}
         onRemoveItem={removeItem}
         totals={totals}
         currentUser={user}
