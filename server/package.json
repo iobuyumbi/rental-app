@@ -9,10 +9,15 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand"
   },
-  "keywords": ["rental", "management", "express", "mongodb", "api"],
+  "keywords": [
+    "rental",
+    "management",
+    "express",
+    "mongodb",
+    "api"
+  ],
   "author": "Rental Management Team",
   "license": "ISC",
   "packageManager": "pnpm@10.13.1",

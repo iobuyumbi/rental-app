@@ -13,7 +13,13 @@ export default defineConfig(({ command }) => {
     plugins.push(
       VitePWA({
         registerType: "autoUpdate",
-        includeAssets: ["favicon.ico", "robots.txt", "apple-touch-icon.png"],
+        includeAssets: [
+          // Keep this list in sync with files present in client/public
+          "pwa-192x192.png",
+          "pwa-512x512.png",
+          "offline.html",
+          "vite.svg",
+        ],
         manifest: {
           name: "RentSmart - Rental Management",
           short_name: "RentSmart",
@@ -58,6 +64,11 @@ export default defineConfig(({ command }) => {
               },
             },
           ],
+          navigateFallback: "/offline.html",
+          navigationPreload: true,
+        },
+        devOptions: {
+          enabled: false,
         },
       })
     );

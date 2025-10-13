@@ -1,20 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Button } from '../components/ui/button';
-import { Plus, X as XIcon, Users } from 'lucide-react';
-import { ordersAPI, inventoryAPI, workersAPI } from '../services/api';
-import { workerTasksAPI } from '../api/workerTasksAPI';
-import { toast } from 'sonner';
-import useDataManager from '../hooks/useDataManager';
-import useFormManager from '../hooks/useFormManager';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect, useCallback } from "react";
+import { Button } from "../components/ui/button";
+import { Plus, X as XIcon, Users } from "lucide-react";
+import { ordersAPI, inventoryAPI, workersAPI } from "../services/api";
+import api from "../api/http";
+import { workerTasksAPI } from "../api/workerTasksAPI";
+import { createWorkerTask, updateWorkerTask } from "../features/orders/tasks";
+import { toast } from "sonner";
+import useDataManager from "../hooks/useDataManager";
+import useFormManager from "../hooks/useFormManager";
+import { useAuth } from "../context/AuthContext";
 
 // Import our components
-import OrdersTable from '../components/orders/OrdersTable';
-import OrderForm from '../components/orders/OrderForm';
-import WorkerTaskModal from '../components/worker-tasks/WorkerTaskModal';
-import OrderWorkflowButtons from '../components/orders/OrderWorkflowButtons';
-import OrderTaskHistory from '../components/orders/OrderTaskHistory';
-import StatusChangeHandler from '../components/orders/StatusChangeHandler';
+import OrdersTable from "../components/orders/OrdersTable";
+import OrderForm from "../components/orders/OrderForm";
+import WorkerTaskModal from "../components/worker-tasks/WorkerTaskModal";
+import OrderWorkflowButtons from "../components/orders/OrderWorkflowButtons";
+import OrderTaskHistory from "../components/orders/OrderTaskHistory";
+import StatusChangeHandler from "../components/orders/StatusChangeHandler";
+import { updateOrderStatusAndRecordTask } from "../features/orders/ordersWorkflow";
 
 const OrdersPage = () => {
   const { user } = useAuth();
@@ -24,20 +27,20 @@ const OrdersPage = () => {
   const [editingOrder, setEditingOrder] = useState(null);
   const [viewingOrder, setViewingOrder] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
-  
+
   // Worker task state
   const [showWorkerTaskModal, setShowWorkerTaskModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
   const [workers, setWorkers] = useState([]);
   const [taskHistoryRefresh, setTaskHistoryRefresh] = useState(0);
-  
+
   // Status change tracking
   const [statusChangeData, setStatusChangeData] = useState(null);
   const [showStatusChangeHandler, setShowStatusChangeHandler] = useState(false);
 
   // Product selection state for order items
-  const [productSearch, setProductSearch] = useState('');
+  const [productSearch, setProductSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [orderItems, setOrderItems] = useState([]);
@@ -45,12 +48,18 @@ const OrdersPage = () => {
   // Memoize API functions to prevent infinite re-renders
   const fetchOrders = useCallback(() => ordersAPI.getOrders({}), []);
   const createOrderFn = useCallback((data) => ordersAPI.createOrder(data), []);
-  const updateOrderFn = useCallback((id, data) => ordersAPI.updateOrder(id, data), []);
+  const updateOrderFn = useCallback(
+    (id, data) => ordersAPI.updateOrder(id, data),
+    []
+  );
   const deleteOrderFn = useCallback((id) => ordersAPI.deleteOrder(id), []);
-  
+
   // Worker task API functions
-  const createWorkerTaskFn = useCallback((data) => workerTasksAPI.tasks.create(data), []);
-  const updateWorkerTaskFn = useCallback((id, data) => workerTasksAPI.tasks.update(id, data), []);
+  const createWorkerTaskFn = useCallback((data) => createWorkerTask(data), []);
+  const updateWorkerTaskFn = useCallback(
+    (id, data) => updateWorkerTask(id, data),
+    []
+  );
 
   // Data management for orders
   const {
@@ -60,43 +69,40 @@ const OrdersPage = () => {
     createItem: createOrder,
     updateItem: updateOrder,
     deleteItem: deleteOrder,
-    refresh: loadOrders
+    refresh: loadOrders,
   } = useDataManager({
     fetchFn: fetchOrders,
     createFn: createOrderFn,
     updateFn: updateOrderFn,
     deleteFn: deleteOrderFn,
-    entityName: 'order'
+    entityName: "order",
   });
 
   // Debug logging for orders
   useEffect(() => {
-    console.log('Orders data received:', {
+    console.log("Orders data received:", {
       count: orders?.length || 0,
       orders: orders,
       loading,
-      error
+      error,
     });
   }, [orders, loading, error]);
 
   // Test API connection
   const testAPIConnection = async () => {
     try {
-      console.log('Testing API connection...');
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/orders`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log('API Response Status:', response.status);
-      const data = await response.json();
-      console.log('Raw API Response:', data);
-      
-      toast.success(`API Test: ${response.status} - ${data?.length || 'No'} orders found`);
+      console.log("Testing API connection...");
+      const response = await api.get("/orders");
+      const data = response?.data || response || [];
+      const status = response?.status || 200;
+      console.log("API Response Status:", status);
+      console.log("Raw API Response:", data);
+
+      toast.success(
+        `API Test: ${status} - ${data?.length || "No"} orders found`
+      );
     } catch (error) {
-      console.error('API Test Error:', error);
+      console.error("API Test Error:", error);
       toast.error(`API Test Failed: ${error.message}`);
     }
   };
@@ -104,33 +110,33 @@ const OrdersPage = () => {
   // Form management for order creation/editing
   const orderForm = useFormManager(
     {
-      client: '',
+      client: "",
       items: [],
-      startDate: '',
-      endDate: '',
-      status: 'pending',
-      notes: '',
-      paymentStatus: 'pending',
+      startDate: "",
+      endDate: "",
+      status: "pending",
+      notes: "",
+      paymentStatus: "pending",
       deposit: 0,
       discount: 0,
       taxRate: 16,
-      location: '', // Add optional location field
-      orderCompany: '' // Add order-specific company field
+      location: "", // Add optional location field
+      orderCompany: "", // Add order-specific company field
     },
     {
       client: { required: true },
       startDate: { required: true },
-      endDate: { required: true }
+      endDate: { required: true },
     },
     async (formData, event) => {
       // Prevent default form submission if event is provided
       if (event) {
         event.preventDefault();
       }
-      
+
       // Validate that there are items in the order
       if (orderItems.length === 0) {
-        toast.error('Please add at least one product to the order');
+        toast.error("Please add at least one product to the order");
         return;
       }
 
@@ -145,42 +151,43 @@ const OrdersPage = () => {
         taxRate: parseFloat(formData.taxRate) || 16,
         status: formData.status,
         paymentStatus: formData.paymentStatus,
-        location: formData.location || '', // Add location to order data
-        orderCompany: formData.orderCompany || '' // Add order-specific company
+        location: formData.location || "", // Add location to order data
+        orderCompany: formData.orderCompany || "", // Add order-specific company
       };
 
       try {
         let updatedOrder;
-        
+
         if (editingOrder) {
           // Check if status is changing to 'in_progress' or 'completed'
           const previousStatus = editingOrder.status;
           const newStatus = orderData.status;
-          
+
           updatedOrder = await updateOrder(editingOrder._id, orderData);
-          toast.success('Order updated successfully');
-          
+          toast.success("Order updated successfully");
+
           // Trigger status change handler if status changed to key states
-          if (previousStatus !== newStatus && 
-              (newStatus === 'in_progress' || newStatus === 'completed')) {
-            
+          if (
+            previousStatus !== newStatus &&
+            (newStatus === "in_progress" || newStatus === "completed")
+          ) {
             setStatusChangeData({
               order: { ...editingOrder, ...orderData },
               previousStatus,
-              newStatus
+              newStatus,
             });
             setShowStatusChangeHandler(true);
           }
         } else {
           updatedOrder = await createOrder(orderData);
-          toast.success('Order created successfully');
+          toast.success("Order created successfully");
         }
-        
+
         handleCloseModal();
         loadOrders(); // Refresh the orders list
       } catch (error) {
-        console.error('Error saving order:', error);
-        toast.error(error.message || 'Failed to save order');
+        console.error("Error saving order:", error);
+        toast.error(error.message || "Failed to save order");
       }
     }
   );
@@ -190,8 +197,9 @@ const OrdersPage = () => {
     const subtotal = orderItems.reduce((sum, item) => {
       const quantity = item.quantity || 0;
       const unitPrice = item.unitPrice || 0;
-      const daysUsed = item.daysUsed || orderForm.values.defaultChargeableDays || 1;
-      return sum + (quantity * unitPrice * daysUsed);
+      const daysUsed =
+        item.daysUsed || orderForm.values.defaultChargeableDays || 1;
+      return sum + quantity * unitPrice * daysUsed;
     }, 0);
     return { subtotal };
   };
@@ -200,10 +208,10 @@ const OrdersPage = () => {
 
   // Format client options for the dropdown - show individual names prominently
   const clientOptions = React.useMemo(() => {
-    return clients.map(client => ({
+    return clients.map((client) => ({
       ...client,
       label: client.name, // Show individual's name prominently
-      value: client._id
+      value: client._id,
     }));
   }, [clients]);
 
@@ -211,7 +219,7 @@ const OrdersPage = () => {
   useEffect(() => {
     loadSupportingData();
   }, []);
-  
+
   // Load workers data
   useEffect(() => {
     const loadWorkers = async () => {
@@ -221,69 +229,80 @@ const OrdersPage = () => {
         const workersData = response?.data || response || [];
         setWorkers(Array.isArray(workersData) ? workersData : []);
       } catch (error) {
-        console.error('Error loading workers:', error);
-        toast.error('Failed to load workers data');
+        console.error("Error loading workers:", error);
+        toast.error("Failed to load workers data");
         setWorkers([]);
       }
     };
-    
+
     loadWorkers();
   }, []);
 
   // Auto-calculate discount percentage from deposit when payment status is "paid"
   useEffect(() => {
-    if (orderForm.values.paymentStatus === 'paid' && orderForm.values.deposit > 0 && totals.subtotal > 0) {
+    if (
+      orderForm.values.paymentStatus === "paid" &&
+      orderForm.values.deposit > 0 &&
+      totals.subtotal > 0
+    ) {
       // Calculate discount: (expected_price - deposit_paid) / expected_price * 100
       const expectedPrice = totals.subtotal;
       const depositPaid = parseFloat(orderForm.values.deposit);
       const discountAmount = expectedPrice - depositPaid;
       const discountPercentage = (discountAmount / expectedPrice) * 100;
-      orderForm.setValue('discount', Math.max(0, Math.min(discountPercentage, 100))); // Cap between 0-100%
-    } else if (orderForm.values.paymentStatus !== 'paid') {
-      orderForm.setValue('discount', 0);
+      orderForm.setValue(
+        "discount",
+        Math.max(0, Math.min(discountPercentage, 100))
+      ); // Cap between 0-100%
+    } else if (orderForm.values.paymentStatus !== "paid") {
+      orderForm.setValue("discount", 0);
     }
-  }, [orderForm.values.paymentStatus, orderForm.values.deposit, totals.subtotal]);
+  }, [
+    orderForm.values.paymentStatus,
+    orderForm.values.deposit,
+    totals.subtotal,
+  ]);
 
   const loadSupportingData = async () => {
     try {
       const [clientsRes, productsRes] = await Promise.all([
         ordersAPI.getClients(),
-        inventoryAPI.products.get()
+        inventoryAPI.products.get(),
       ]);
-      
+
       // Use consistent data extraction pattern
       const clientsData = clientsRes?.data || clientsRes || [];
       const productsData = productsRes?.data || productsRes || [];
-      
+
       setClients(Array.isArray(clientsData) ? clientsData : []);
       setProducts(Array.isArray(productsData) ? productsData : []);
     } catch (error) {
-      console.error('Error loading supporting data:', error);
-      toast.error('Failed to load supporting data');
+      console.error("Error loading supporting data:", error);
+      toast.error("Failed to load supporting data");
       setClients([]);
       setProducts([]);
     }
   };
-  
+
   // Worker task handlers
   const handleOpenWorkerTaskModal = (order) => {
     setSelectedOrder(order);
     setEditingTask(null);
     setShowWorkerTaskModal(true);
   };
-  
+
   const handleEditWorkerTask = (task) => {
     setEditingTask(task);
     setSelectedOrder(task.order);
     setShowWorkerTaskModal(true);
   };
-  
+
   const handleCloseWorkerTaskModal = () => {
     setShowWorkerTaskModal(false);
     setSelectedOrder(null);
     setEditingTask(null);
   };
-  
+
   const handleSubmitWorkerTask = async (taskData) => {
     try {
       if (editingTask) {
@@ -296,7 +315,7 @@ const OrdersPage = () => {
       loadOrders();
       return true;
     } catch (error) {
-      console.error('Error saving worker task:', error);
+      console.error("Error saving worker task:", error);
       throw error;
     }
   };
@@ -306,12 +325,11 @@ const OrdersPage = () => {
     setShowAddOrder(false);
     setEditingOrder(null);
     setOrderItems([]);
-    setProductSearch('');
+    setProductSearch("");
     setSelectedProduct(null);
     setQuantity(1);
     orderForm.reset();
   };
-
 
   // Order handlers
   const handleAddOrder = () => {
@@ -323,33 +341,37 @@ const OrdersPage = () => {
 
   const handleEditOrder = (order) => {
     setEditingOrder(order);
-    
+
     // Debug: Log the order data to see what fields are available
-    console.log('Editing order:', order);
-    console.log('Rental dates:', {
+    console.log("Editing order:", order);
+    console.log("Rental dates:", {
       rentalStartDate: order.rentalStartDate,
       rentalEndDate: order.rentalEndDate,
       startDate: order.startDate,
-      endDate: order.endDate
+      endDate: order.endDate,
     });
-    
+
     // Map order items from database format to form format
-    const mappedItems = (order.items || []).map(item => ({
+    const mappedItems = (order.items || []).map((item) => ({
       productId: item.product?._id || item.product,
-      productName: item.product?.name || item.productName || 'Unknown Product',
+      productName: item.product?.name || item.productName || "Unknown Product",
       quantity: item.quantityRented || item.quantity || 1,
       unitPrice: item.unitPriceAtTimeOfRental || item.unitPrice || 0,
-      priceModifiedBy: item.priceModifiedBy
+      priceModifiedBy: item.priceModifiedBy,
     }));
-    
+
     setOrderItems(mappedItems);
-    
+
     // Extract dates with fallback to both possible field names
-    const startDate = order.rentalStartDate?.split('T')[0] || order.startDate?.split('T')[0] || '';
-    const endDate = order.rentalEndDate?.split('T')[0] || order.endDate?.split('T')[0] || '';
-    
-    console.log('Mapped dates for form:', { startDate, endDate });
-    
+    const startDate =
+      order.rentalStartDate?.split("T")[0] ||
+      order.startDate?.split("T")[0] ||
+      "";
+    const endDate =
+      order.rentalEndDate?.split("T")[0] || order.endDate?.split("T")[0] || "";
+
+    console.log("Mapped dates for form:", { startDate, endDate });
+
     orderForm.updateValues({
       client: order.client?._id || order.client,
       startDate,
@@ -359,9 +381,9 @@ const OrdersPage = () => {
       deposit: order.deposit || 0,
       discount: order.discount || 0,
       taxRate: order.taxRate || 16,
-      notes: order.notes || '',
-      location: order.location || '', // Add location field for editing
-      orderCompany: order.orderCompany || '' // Add order-specific company for editing
+      notes: order.notes || "",
+      location: order.location || "", // Add location field for editing
+      orderCompany: order.orderCompany || "", // Add order-specific company for editing
     });
     setShowAddOrder(true);
   };
@@ -375,8 +397,10 @@ const OrdersPage = () => {
   const addItemToOrder = () => {
     if (!selectedProduct || !quantity) return;
 
-    const existingItemIndex = orderItems.findIndex(item => item.productId === selectedProduct._id);
-    
+    const existingItemIndex = orderItems.findIndex(
+      (item) => item.productId === selectedProduct._id
+    );
+
     if (existingItemIndex >= 0) {
       // Update existing item quantity
       const updatedItems = [...orderItems];
@@ -389,20 +413,20 @@ const OrdersPage = () => {
         productName: selectedProduct.name,
         quantity: parseInt(quantity),
         unitPrice: selectedProduct.rentalPrice,
-        daysUsed: orderForm.values.defaultChargeableDays || 1
+        daysUsed: orderForm.values.defaultChargeableDays || 1,
       };
       setOrderItems([...orderItems, newItem]);
     }
 
     // Reset selection
     setSelectedProduct(null);
-    setProductSearch('');
+    setProductSearch("");
     setQuantity(1);
   };
 
   const updateItemQuantity = (index, newQuantity) => {
     if (newQuantity < 1) return;
-    
+
     const updatedItems = [...orderItems];
     updatedItems[index].quantity = newQuantity;
     setOrderItems(updatedItems);
@@ -411,14 +435,14 @@ const OrdersPage = () => {
   const updateItemUnitPrice = (index, newPrice, user) => {
     const updatedItems = [...orderItems];
     updatedItems[index].unitPrice = newPrice;
-    updatedItems[index].priceModifiedBy = user?.name || 'Unknown User';
+    updatedItems[index].priceModifiedBy = user?.name || "Unknown User";
     updatedItems[index].priceModifiedAt = new Date().toISOString();
     setOrderItems(updatedItems);
   };
 
   const updateItemDaysUsed = (index, newDays) => {
     if (newDays < 1) return;
-    
+
     const updatedItems = [...orderItems];
     updatedItems[index].daysUsed = newDays;
     setOrderItems(updatedItems);
@@ -429,10 +453,9 @@ const OrdersPage = () => {
   };
 
   // Filter products based on search
-  const filteredProducts = products.filter(product =>
+  const filteredProducts = products.filter((product) =>
     product.name.toLowerCase().includes(productSearch.toLowerCase())
   );
-
 
   const handleFormChange = (field, value) => {
     orderForm.handleChange(field, value);
@@ -442,15 +465,15 @@ const OrdersPage = () => {
   const handleAddNewClient = async (clientData) => {
     try {
       const newClient = await ordersAPI.addClient(clientData);
-      
+
       // Add the new client to the clients list
-      setClients(prev => [...prev, newClient]);
-      
-      toast.success('New client created successfully!');
+      setClients((prev) => [...prev, newClient]);
+
+      toast.success("New client created successfully!");
       return newClient;
     } catch (error) {
-      console.error('Error creating new client:', error);
-      toast.error('Failed to create new client');
+      console.error("Error creating new client:", error);
+      toast.error("Failed to create new client");
       throw error; // Re-throw so the OrderForm can handle it
     }
   };
@@ -459,12 +482,12 @@ const OrdersPage = () => {
   const handleWorkflowTaskCreated = async (taskData) => {
     try {
       await createWorkerTaskFn(taskData);
-      toast.success('Worker task recorded successfully');
+      toast.success("Worker task recorded successfully");
       // Refresh task history and orders
-      setTaskHistoryRefresh(prev => prev + 1);
+      setTaskHistoryRefresh((prev) => prev + 1);
       loadOrders();
     } catch (error) {
-      console.error('Error creating workflow task:', error);
+      console.error("Error creating workflow task:", error);
       throw error;
     }
   };
@@ -480,12 +503,12 @@ const OrdersPage = () => {
   const handleDeleteTaskFromHistory = async (taskId) => {
     try {
       await workerTasksAPI.tasks.delete(taskId);
-      toast.success('Worker task deleted successfully');
-      setTaskHistoryRefresh(prev => prev + 1);
+      toast.success("Worker task deleted successfully");
+      setTaskHistoryRefresh((prev) => prev + 1);
       loadOrders();
     } catch (error) {
-      console.error('Error deleting task:', error);
-      toast.error('Failed to delete worker task');
+      console.error("Error deleting task:", error);
+      toast.error("Failed to delete worker task");
       throw error;
     }
   };
@@ -493,22 +516,22 @@ const OrdersPage = () => {
   // Handler for status change task creation
   const handleStatusChangeTaskCreated = async (taskData) => {
     try {
-      console.log('Creating status change task:', taskData);
+      console.log("Creating status change task:", taskData);
       // The task creation is handled by the WorkerTaskModal
       // We just need to refresh data after completion
       await loadOrders();
-      toast.success('Worker task recorded successfully');
-      
+      toast.success("Worker task recorded successfully");
+
       // Also trigger a refresh of inventory data if available
       if (window.dispatchEvent) {
-        window.dispatchEvent(new CustomEvent('inventoryUpdated'));
+        window.dispatchEvent(new CustomEvent("inventoryUpdated"));
       }
       // Reset status change handler state
       setShowStatusChangeHandler(false);
       setStatusChangeData(null);
     } catch (error) {
-      console.error('Error in status change task creation:', error);
-      toast.error('Failed to record worker task');
+      console.error("Error in status change task creation:", error);
+      toast.error("Failed to record worker task");
     }
   };
 
@@ -521,51 +544,40 @@ const OrdersPage = () => {
   // Handle status change from table button
   const handleTableStatusChange = async (orderId, statusData) => {
     try {
-      console.log('Changing order status:', orderId, statusData);
-      
-      // Update the order with new status and calculations
-      const updateData = {
-        status: statusData.status,
-        totalAmount: statusData.adjustedAmount,
-        actualReturnDate: statusData.actualDate,
-        chargeableDays: statusData.chargeableDays,
-        usageCalculation: statusData.calculations
-      };
+      console.log("Changing order status:", orderId, statusData);
 
-      const updatedOrder = await updateOrder(orderId, updateData);
-      
-      // Trigger status change handler for worker tasks if needed
-      const order = orders.find(o => o._id === orderId);
-      if (order && (statusData.status === 'in_progress' || statusData.status === 'completed')) {
-        setStatusChangeData({
-          order: { ...order, ...updateData },
-          previousStatus: order.status,
-          newStatus: statusData.status
-        });
-        setShowStatusChangeHandler(true);
-      }
+      const order = orders.find((o) => o._id === orderId);
+      if (!order) throw new Error("Order not found");
 
-      // Trigger inventory update
-      if (window.dispatchEvent) {
-        window.dispatchEvent(new CustomEvent('inventoryUpdated'));
-      }
+      await updateOrderStatusAndRecordTask({
+        order,
+        statusData,
+        onInventoryUpdated: () => {
+          if (window.dispatchEvent) {
+            window.dispatchEvent(new CustomEvent("inventoryUpdated"));
+          }
+        },
+      });
 
       await loadOrders();
-      
+
       if (statusData.calculations?.difference) {
         const diff = statusData.calculations.difference;
         if (diff > 0) {
-          toast.success(`Status updated. Additional charge: KES ${diff.toLocaleString()}`);
+          toast.success(
+            `Status updated. Additional charge: KES ${diff.toLocaleString()}`
+          );
         } else if (diff < 0) {
-          toast.success(`Status updated. Refund: KES ${Math.abs(diff).toLocaleString()}`);
+          toast.success(
+            `Status updated. Refund: KES ${Math.abs(diff).toLocaleString()}`
+          );
         }
       } else {
-        toast.success('Order status updated successfully');
+        toast.success("Order status updated successfully");
       }
-
     } catch (error) {
-      console.error('Error changing order status:', error);
-      toast.error(error.message || 'Failed to change order status');
+      console.error("Error changing order status:", error);
+      toast.error(error.message || "Failed to change order status");
       throw error; // Re-throw to let modal handle it
     }
   };
@@ -575,7 +587,9 @@ const OrdersPage = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Orders Management</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Orders Management
+          </h1>
           <p className="text-muted-foreground">
             Manage rental orders, track inventory, and process payments
           </p>
@@ -585,7 +599,7 @@ const OrdersPage = () => {
             Test API
           </Button>
           <Button onClick={loadOrders} variant="outline" disabled={loading}>
-            {loading ? 'Loading...' : 'Refresh Orders'}
+            {loading ? "Loading..." : "Refresh Orders"}
           </Button>
           <div className="text-sm text-gray-500">
             {orders?.length || 0} orders loaded
@@ -600,10 +614,10 @@ const OrdersPage = () => {
             <div className="text-red-800">
               <strong>Error loading orders:</strong> {error}
             </div>
-            <Button 
-              onClick={loadOrders} 
-              variant="outline" 
-              size="sm" 
+            <Button
+              onClick={loadOrders}
+              variant="outline"
+              size="sm"
               className="ml-4"
             >
               Retry
@@ -613,13 +627,12 @@ const OrdersPage = () => {
       )}
 
       {/* Debug Info */}
-      {process.env.NODE_ENV === 'development' && (
+      {process.env.NODE_ENV === "development" && (
         <div className="bg-gray-50 border rounded-lg p-4 text-xs">
-          <strong>Debug Info:</strong> 
-          Loading: {loading ? 'Yes' : 'No'} | 
-          Orders Count: {orders?.length || 0} | 
-          Error: {error || 'None'} |
-          API URL: {import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}
+          <strong>Debug Info:</strong>
+          Loading: {loading ? "Yes" : "No"} | Orders Count:{" "}
+          {orders?.length || 0} | Error: {error || "None"} | API URL:{" "}
+          {import.meta.env.VITE_API_URL || "http://localhost:5000/api"}
         </div>
       )}
 
@@ -666,14 +679,25 @@ const OrdersPage = () => {
 
       {/* Order View Modal */}
       {showViewModal && viewingOrder && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowViewModal(false)}>
-          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto m-4" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setShowViewModal(false)}
+        >
+          <div
+            className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto m-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-start mb-6">
               <div>
-                <h2 className="text-2xl font-bold">Order #{viewingOrder._id.slice(-6).toUpperCase()}</h2>
+                <h2 className="text-2xl font-bold">
+                  Order #{viewingOrder._id.slice(-6).toUpperCase()}
+                </h2>
                 <p className="text-gray-500 mt-1">Order Details and Items</p>
               </div>
-              <button onClick={() => setShowViewModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
                 <XIcon className="h-6 w-6" />
               </button>
             </div>
@@ -684,19 +708,27 @@ const OrdersPage = () => {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">Contact Person:</span>
-                  <div className="font-medium">{viewingOrder.client?.contactPerson || 'N/A'}</div>
+                  <div className="font-medium">
+                    {viewingOrder.client?.contactPerson || "N/A"}
+                  </div>
                 </div>
                 <div>
                   <span className="text-gray-600">Company:</span>
-                  <div className="font-medium">{viewingOrder.client?.name || 'N/A'}</div>
+                  <div className="font-medium">
+                    {viewingOrder.client?.name || "N/A"}
+                  </div>
                 </div>
                 <div>
                   <span className="text-gray-600">Phone:</span>
-                  <div className="font-medium">{viewingOrder.client?.phone || 'N/A'}</div>
+                  <div className="font-medium">
+                    {viewingOrder.client?.phone || "N/A"}
+                  </div>
                 </div>
                 <div>
                   <span className="text-gray-600">Email:</span>
-                  <div className="font-medium">{viewingOrder.client?.email || 'N/A'}</div>
+                  <div className="font-medium">
+                    {viewingOrder.client?.email || "N/A"}
+                  </div>
                 </div>
               </div>
             </div>
@@ -708,7 +740,8 @@ const OrdersPage = () => {
                 <div>
                   <span className="text-gray-600">Rental Period:</span>
                   <div className="font-medium">
-                    {formatDate(viewingOrder.rentalStartDate)} - {formatDate(viewingOrder.rentalEndDate)}
+                    {formatDate(viewingOrder.rentalStartDate)} -{" "}
+                    {formatDate(viewingOrder.rentalEndDate)}
                   </div>
                 </div>
                 <div>
@@ -717,18 +750,24 @@ const OrdersPage = () => {
                 </div>
                 <div>
                   <span className="text-gray-600">Total Amount:</span>
-                  <div className="font-medium">KES {viewingOrder.totalAmount?.toLocaleString()}</div>
+                  <div className="font-medium">
+                    KES {viewingOrder.totalAmount?.toLocaleString()}
+                  </div>
                 </div>
                 <div>
                   <span className="text-gray-600">Amount Paid:</span>
                   <div className="font-medium">
-                    KES {(() => {
+                    KES{" "}
+                    {(() => {
                       const totalAmount = viewingOrder.totalAmount || 0;
                       const deposit = viewingOrder.deposit || 0;
                       let amountPaid = viewingOrder.amountPaid || 0;
-                      
+
                       // If payment status is 'paid' but amountPaid is 0, assume full payment
-                      if (viewingOrder.paymentStatus === 'paid' && amountPaid === 0) {
+                      if (
+                        viewingOrder.paymentStatus === "paid" &&
+                        amountPaid === 0
+                      ) {
                         amountPaid = totalAmount;
                       }
                       // If there's a deposit but no recorded amountPaid, show at least the deposit
@@ -736,26 +775,37 @@ const OrdersPage = () => {
                         amountPaid = deposit;
                       }
                       // If there's both deposit and amountPaid, ensure amountPaid includes deposit
-                      else if (deposit > 0 && amountPaid > 0 && amountPaid < deposit) {
+                      else if (
+                        deposit > 0 &&
+                        amountPaid > 0 &&
+                        amountPaid < deposit
+                      ) {
                         amountPaid = deposit;
                       }
-                      
+
                       return amountPaid.toLocaleString();
                     })()}
                     {(() => {
                       const deposit = viewingOrder.deposit || 0;
                       const totalAmount = viewingOrder.totalAmount || 0;
                       let amountPaid = viewingOrder.amountPaid || 0;
-                      
+
                       // Apply same logic to determine final amountPaid
-                      if (viewingOrder.paymentStatus === 'paid' && amountPaid === 0) {
+                      if (
+                        viewingOrder.paymentStatus === "paid" &&
+                        amountPaid === 0
+                      ) {
                         amountPaid = totalAmount;
                       } else if (deposit > 0 && amountPaid === 0) {
                         amountPaid = deposit;
-                      } else if (deposit > 0 && amountPaid > 0 && amountPaid < deposit) {
+                      } else if (
+                        deposit > 0 &&
+                        amountPaid > 0 &&
+                        amountPaid < deposit
+                      ) {
                         amountPaid = deposit;
                       }
-                      
+
                       return deposit > 0 && amountPaid !== totalAmount ? (
                         <div className="text-xs text-blue-600 mt-1">
                           (Includes deposit: KES {deposit.toLocaleString()})
@@ -769,36 +819,62 @@ const OrdersPage = () => {
 
             {/* Order Items */}
             <div className="mb-6">
-              <h3 className="font-semibold mb-3">Order Items ({viewingOrder.items?.length || 0})</h3>
+              <h3 className="font-semibold mb-3">
+                Order Items ({viewingOrder.items?.length || 0})
+              </h3>
               <div className="border rounded-lg overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Product
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Quantity
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Unit Price
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {viewingOrder.items?.map((item, index) => (
                       <tr key={index}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {item.product?.name || item.productName || 'Unknown Product'}
+                          {item.product?.name ||
+                            item.productName ||
+                            "Unknown Product"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           {item.quantityRented || item.quantity || 0}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          KES {(item.unitPriceAtTimeOfRental || item.unitPrice || 0).toLocaleString()}
+                          KES{" "}
+                          {(
+                            item.unitPriceAtTimeOfRental ||
+                            item.unitPrice ||
+                            0
+                          ).toLocaleString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          KES {((item.quantityRented || item.quantity || 0) * (item.unitPriceAtTimeOfRental || item.unitPrice || 0)).toLocaleString()}
+                          KES{" "}
+                          {(
+                            (item.quantityRented || item.quantity || 0) *
+                            (item.unitPriceAtTimeOfRental ||
+                              item.unitPrice ||
+                              0)
+                          ).toLocaleString()}
                         </td>
                       </tr>
                     )) || (
                       <tr>
-                        <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
+                        <td
+                          colSpan="4"
+                          className="px-6 py-4 text-center text-sm text-gray-500"
+                        >
                           No items found
                         </td>
                       </tr>
@@ -832,7 +908,7 @@ const OrdersPage = () => {
                 order={viewingOrder}
                 workers={workers}
                 onTaskCreated={handleWorkflowTaskCreated}
-                disabled={viewingOrder.status === 'cancelled'}
+                disabled={viewingOrder.status === "cancelled"}
               />
             </div>
 
@@ -847,7 +923,7 @@ const OrdersPage = () => {
           </div>
         </div>
       )}
-      
+
       {/* Worker Task Modal */}
       {showWorkerTaskModal && (
         <WorkerTaskModal
@@ -877,7 +953,7 @@ const OrdersPage = () => {
 };
 
 const formatDate = (dateString) => {
-  if (!dateString) return 'N/A';
+  if (!dateString) return "N/A";
   return new Date(dateString).toLocaleDateString();
 };
 

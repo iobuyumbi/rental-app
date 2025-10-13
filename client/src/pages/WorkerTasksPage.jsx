@@ -1,17 +1,47 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useToast } from '../hooks/useToast';
-import { useAuth } from '../context/AuthContext';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Badge } from '../components/ui/badge';
-import { Plus, Search, Filter, Calendar, DollarSign, Users } from 'lucide-react';
-import { workerTasksAPI } from '../api/workerTasksAPI';
-import { formatDate, formatCurrency } from '../utils/formatters';
-import { ordersAPI, workersAPI } from '../services/api';
-import WorkerTaskModal from '../components/worker-tasks/WorkerTaskModal';
+import React, { useState, useEffect, useCallback } from "react";
+import { useToast } from "../hooks/useToast";
+import { useAuth } from "../context/AuthContext";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../components/ui/table";
+import { Badge } from "../components/ui/badge";
+import {
+  Plus,
+  Search,
+  Filter,
+  Calendar,
+  DollarSign,
+  Users,
+} from "lucide-react";
+import { workerTasksAPI } from "../api/workerTasksAPI";
+import {
+  createWorkerTask,
+  updateWorkerTask,
+  deleteWorkerTask,
+} from "../features/orders/tasks";
+import { formatDate, formatCurrency } from "../utils/formatters";
+import { ordersAPI, workersAPI } from "../services/api";
+import WorkerTaskModal from "../components/worker-tasks/WorkerTaskModal";
 
 const WorkerTasksPage = () => {
   const { toast } = useToast();
@@ -20,9 +50,9 @@ const WorkerTasksPage = () => {
   const [loading, setLoading] = useState(true);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState("all");
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [workers, setWorkers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -31,24 +61,24 @@ const WorkerTasksPage = () => {
     fetchTasks();
     fetchSupportingData();
   }, []);
-  
+
   const fetchSupportingData = async () => {
     try {
       const [workersRes, ordersRes] = await Promise.all([
         workersAPI.workers.get(),
-        ordersAPI.getOrders({})
+        ordersAPI.getOrders({}),
       ]);
-      
+
       const workersData = workersRes?.data || workersRes || [];
       const ordersData = ordersRes?.data || ordersRes || [];
-      
+
       setWorkers(Array.isArray(workersData) ? workersData : []);
       setOrders(Array.isArray(ordersData) ? ordersData : []);
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'Failed to load supporting data',
-        variant: 'destructive'
+        title: "Error",
+        description: "Failed to load supporting data",
+        variant: "destructive",
       });
     }
   };
@@ -60,12 +90,12 @@ const WorkerTasksPage = () => {
       const tasksData = response?.data || response || [];
       setTasks(Array.isArray(tasksData) ? tasksData : []);
     } catch (error) {
-      console.error('Error loading worker tasks:', error);
+      console.error("Error loading worker tasks:", error);
       setTasks([]); // Ensure tasks is always an array
       toast({
-        title: 'Error',
-        description: 'Failed to load worker tasks',
-        variant: 'destructive'
+        title: "Error",
+        description: "Failed to load worker tasks",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -78,61 +108,63 @@ const WorkerTasksPage = () => {
     setEditingTask(null);
     setShowTaskModal(true);
   };
-  
+
   const handleEditTask = (task) => {
     setEditingTask(task);
     setSelectedOrder(task.order);
     setShowTaskModal(true);
   };
-  
+
   const handleCloseTaskModal = () => {
     setShowTaskModal(false);
     setSelectedOrder(null);
     setEditingTask(null);
   };
-  
+
   const handleSubmitTask = async (taskData) => {
     try {
       if (editingTask) {
-        await workerTasksAPI.tasks.update(editingTask._id, taskData);
+        await updateWorkerTask(editingTask._id, taskData);
         toast({
-          title: 'Success',
-          description: 'Worker task updated successfully'
+          title: "Success",
+          description: "Worker task updated successfully",
         });
       } else {
-        await workerTasksAPI.tasks.create(taskData);
+        await createWorkerTask(taskData);
         toast({
-          title: 'Success',
-          description: 'Worker task created successfully'
+          title: "Success",
+          description: "Worker task created successfully",
         });
       }
       handleCloseTaskModal();
       fetchTasks();
     } catch (error) {
       toast({
-        title: 'Error',
-        description: error.response?.data?.message || 'Failed to save worker task',
-        variant: 'destructive'
+        title: "Error",
+        description:
+          error.response?.data?.message || "Failed to save worker task",
+        variant: "destructive",
       });
       throw error;
     }
   };
 
   const handleDeleteTask = async (taskId) => {
-    if (!confirm('Are you sure you want to delete this task?')) return;
-    
+    if (!confirm("Are you sure you want to delete this task?")) return;
+
     try {
-      await workerTasksAPI.tasks.delete(taskId);
+      await deleteWorkerTask(taskId);
       toast({
-        title: 'Success',
-        description: 'Worker task deleted successfully'
+        title: "Success",
+        description: "Worker task deleted successfully",
       });
       fetchTasks();
     } catch (error) {
       toast({
-        title: 'Error',
-        description: error.response?.data?.message || 'Failed to delete worker task',
-        variant: 'destructive'
+        title: "Error",
+        description:
+          error.response?.data?.message || "Failed to delete worker task",
+        variant: "destructive",
       });
     }
   };
@@ -148,20 +180,20 @@ const WorkerTasksPage = () => {
   };
 
   const handleDateChange = (field, value) => {
-    setDateRange(prev => ({ ...prev, [field]: value }));
+    setDateRange((prev) => ({ ...prev, [field]: value }));
   };
 
-  const filteredTasks = (Array.isArray(tasks) ? tasks : []).filter(task => {
+  const filteredTasks = (Array.isArray(tasks) ? tasks : []).filter((task) => {
     // Search filter
     const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       task.order?.client?.name?.toLowerCase().includes(searchLower) ||
       task._id.toLowerCase().includes(searchLower) ||
       task.taskType.toLowerCase().includes(searchLower);
-    
+
     // Type filter
-    const matchesType = filterType === 'all' || task.taskType === filterType;
-    
+    const matchesType = filterType === "all" || task.taskType === filterType;
+
     // Date filter
     let matchesDate = true;
     if (dateRange.startDate && dateRange.endDate) {
@@ -169,33 +201,33 @@ const WorkerTasksPage = () => {
       const startDate = new Date(dateRange.startDate);
       const endDate = new Date(dateRange.endDate);
       endDate.setHours(23, 59, 59); // Include the entire end day
-      
+
       matchesDate = taskDate >= startDate && taskDate <= endDate;
     }
-    
+
     return matchesSearch && matchesType && matchesDate;
   });
 
   const getTaskTypeLabel = (type) => {
     const types = {
-      'issuing': 'Issuing Items',
-      'receiving': 'Receiving Items',
-      'loading': 'Loading',
-      'unloading': 'Unloading',
-      'other': 'Other Task'
+      issuing: "Issuing Items",
+      receiving: "Receiving Items",
+      loading: "Loading",
+      unloading: "Unloading",
+      other: "Other Task",
     };
     return types[type] || type;
   };
 
   const getTaskTypeColor = (type) => {
     const colors = {
-      'issuing': 'bg-blue-100 text-blue-800',
-      'receiving': 'bg-green-100 text-green-800',
-      'loading': 'bg-amber-100 text-amber-800',
-      'unloading': 'bg-purple-100 text-purple-800',
-      'other': 'bg-gray-100 text-gray-800'
+      issuing: "bg-blue-100 text-blue-800",
+      receiving: "bg-green-100 text-green-800",
+      loading: "bg-amber-100 text-amber-800",
+      unloading: "bg-purple-100 text-purple-800",
+      other: "bg-gray-100 text-gray-800",
     };
-    return colors[type] || 'bg-gray-100 text-gray-800';
+    return colors[type] || "bg-gray-100 text-gray-800";
   };
 
   return (
@@ -214,46 +246,63 @@ const WorkerTasksPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">Total Tasks</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-500">
+              Total Tasks
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center">
               <Users className="h-5 w-5 text-gray-500 mr-2" />
-              <span className="text-2xl font-bold">{Array.isArray(tasks) ? tasks.length : 0}</span>
+              <span className="text-2xl font-bold">
+                {Array.isArray(tasks) ? tasks.length : 0}
+              </span>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">Total Paid</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-500">
+              Total Paid
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center">
               <DollarSign className="h-5 w-5 text-gray-500 mr-2" />
               <span className="text-2xl font-bold">
-                {formatCurrency((Array.isArray(tasks) ? tasks : []).reduce((sum, task) => sum + task.taskAmount, 0))}
+                {formatCurrency(
+                  (Array.isArray(tasks) ? tasks : []).reduce(
+                    (sum, task) => sum + task.taskAmount,
+                    0
+                  )
+                )}
               </span>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">This Month</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-500">
+              This Month
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center">
               <Calendar className="h-5 w-5 text-gray-500 mr-2" />
               <span className="text-2xl font-bold">
-                {formatCurrency((Array.isArray(tasks) ? tasks : [])
-                  .filter(task => {
-                    const taskDate = new Date(task.completedAt);
-                    const now = new Date();
-                    return taskDate.getMonth() === now.getMonth() && 
-                           taskDate.getFullYear() === now.getFullYear();
-                  })
-                  .reduce((sum, task) => sum + task.taskAmount, 0))}
+                {formatCurrency(
+                  (Array.isArray(tasks) ? tasks : [])
+                    .filter((task) => {
+                      const taskDate = new Date(task.completedAt);
+                      const now = new Date();
+                      return (
+                        taskDate.getMonth() === now.getMonth() &&
+                        taskDate.getFullYear() === now.getFullYear()
+                      );
+                    })
+                    .reduce((sum, task) => sum + task.taskAmount, 0)
+                )}
               </span>
             </div>
           </CardContent>
@@ -271,7 +320,7 @@ const WorkerTasksPage = () => {
             className="pl-10"
           />
         </div>
-        
+
         <div className="flex items-center space-x-2">
           <Filter className="text-gray-400 h-4 w-4" />
           <Select value={filterType} onValueChange={handleFilterChange}>
@@ -288,19 +337,19 @@ const WorkerTasksPage = () => {
             </SelectContent>
           </Select>
         </div>
-        
+
         <div className="flex items-center space-x-2">
           <Input
             type="date"
             value={dateRange.startDate}
-            onChange={(e) => handleDateChange('startDate', e.target.value)}
+            onChange={(e) => handleDateChange("startDate", e.target.value)}
             className="w-[150px]"
           />
           <span className="text-gray-500">to</span>
           <Input
             type="date"
             value={dateRange.endDate}
-            onChange={(e) => handleDateChange('endDate', e.target.value)}
+            onChange={(e) => handleDateChange("endDate", e.target.value)}
             className="w-[150px]"
           />
         </div>
@@ -324,25 +373,37 @@ const WorkerTasksPage = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-4">Loading...</TableCell>
+                  <TableCell colSpan={7} className="text-center py-4">
+                    Loading...
+                  </TableCell>
                 </TableRow>
               ) : filteredTasks.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-4">
-                    {searchQuery || filterType !== 'all' || (dateRange.startDate && dateRange.endDate) ? 
-                      'No tasks match your filters' : 'No tasks recorded yet'}
+                    {searchQuery ||
+                    filterType !== "all" ||
+                    (dateRange.startDate && dateRange.endDate)
+                      ? "No tasks match your filters"
+                      : "No tasks recorded yet"}
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredTasks.map((task) => {
-                  const presentWorkers = task.workers.filter(w => w.present).length;
-                  const sharePerWorker = presentWorkers > 0 ? task.taskAmount / presentWorkers : 0;
-                  
+                  const presentWorkers = task.workers.filter(
+                    (w) => w.present
+                  ).length;
+                  const sharePerWorker =
+                    presentWorkers > 0 ? task.taskAmount / presentWorkers : 0;
+
                   return (
                     <TableRow key={task._id}>
                       <TableCell>
-                        <div className="font-medium">#{task.order?._id.slice(-6).toUpperCase() || 'N/A'}</div>
-                        <div className="text-sm text-gray-500">{task.order?.client?.name || 'Unknown Client'}</div>
+                        <div className="font-medium">
+                          #{task.order?._id.slice(-6).toUpperCase() || "N/A"}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {task.order?.client?.name || "Unknown Client"}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge className={getTaskTypeColor(task.taskType)}>
@@ -356,9 +417,9 @@ const WorkerTasksPage = () => {
                         </div>
                         <div className="text-xs text-gray-500">
                           {task.workers
-                            .filter(w => w.present)
-                            .map(w => w.worker.name)
-                            .join(', ')}
+                            .filter((w) => w.present)
+                            .map((w) => w.worker.name)
+                            .join(", ")}
                         </div>
                       </TableCell>
                       <TableCell>{formatCurrency(task.taskAmount)}</TableCell>
