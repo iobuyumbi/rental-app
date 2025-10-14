@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Calendar, Clock, DollarSign } from 'lucide-react';
-import StatusChangeModal from './StatusChangeModal';
+import OrderStatusManager from './OrderStatusManager';
 
 /**
  * StatusButton - Clickable status button that opens modal for status changes
@@ -88,11 +88,11 @@ const StatusButton = ({
       </Button>
 
       {showModal && (
-        <StatusChangeModal
-          isOpen={showModal}
+        <OrderStatusManager
           order={order}
           onStatusChange={handleStatusChange}
-          onClose={handleClose}
+          onComplete={handleClose}
+          workers={[]} // Pass workers from props if available
         />
       )}
     </>

@@ -106,12 +106,28 @@ const OrdersTable = ({
           amountPaid = deposit;
         }
         
+        // Calculate the full amount based on items and chargeable days
+        const fullAmount = order.items?.reduce((sum, item) => {
+          const quantity = item.quantity || item.quantityRented || 0;
+          const unitPrice = item.unitPrice || item.unitPriceAtTimeOfRental || 0;
+          const chargeableDays = order.defaultChargeableDays || 1;
+          return sum + (quantity * unitPrice * chargeableDays);
+        }, 0) || totalAmount;
+        
+        // Update amountPaid to reflect the correct proportion of fullAmount
+        if (order.paymentStatus === 'paid') {
+          amountPaid = fullAmount;
+        } else if (amountPaid > 0 && amountPaid === totalAmount / 2) {
+          // If amountPaid is exactly half of the old totalAmount, update it to be half of fullAmount
+          amountPaid = fullAmount / 2;
+        }
+        
         return (
           <div className="text-right">
-            <div className="font-medium">KES {totalAmount.toLocaleString()}</div>
+            <div className="font-medium">KES {fullAmount.toLocaleString()}</div>
             <div className="text-sm text-gray-500">
               Paid: KES {amountPaid.toLocaleString()}
-              {deposit > 0 && amountPaid !== totalAmount && (
+              {deposit > 0 && amountPaid !== fullAmount && (
                 <div className="text-xs text-blue-600">
                   (Deposit: KES {deposit.toLocaleString()})
                 </div>

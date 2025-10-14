@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import WorkerTaskModal from '../worker-tasks/WorkerTaskModal';
+import WorkerTaskRecorder from '../workers/WorkerTaskRecorder';
 import DateValidationHandler from './DateValidationHandler';
-import { calculateTaskAmount } from './TaskCalculator';
+import { calculateSuggestedAmount } from '../../utils/workerTaskUtils';
 import { smsAPI } from '../../services/smsAPI';
 
 /**
@@ -226,7 +226,7 @@ const StatusChangeHandler = ({
 
       {/* Worker Task Modal - Shows after date validation */}
       {showTaskModal && taskData && (
-        <WorkerTaskModal
+        <WorkerTaskRecorder
           isOpen={showTaskModal}
           onClose={handleCloseModal}
           order={order}

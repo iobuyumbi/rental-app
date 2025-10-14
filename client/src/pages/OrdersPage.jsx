@@ -16,7 +16,7 @@ import OrderForm from "../components/orders/OrderForm";
 import WorkerTaskModal from "../components/worker-tasks/WorkerTaskModal";
 import OrderWorkflowButtons from "../components/orders/OrderWorkflowButtons";
 import OrderTaskHistory from "../components/orders/OrderTaskHistory";
-import StatusChangeHandler from "../components/orders/StatusChangeHandler";
+import OrderStatusManager from "../components/orders/OrderStatusManager";
 import { updateOrderStatusAndRecordTask } from "../features/orders/ordersWorkflow";
 
 const OrdersPage = () => {
@@ -194,12 +194,11 @@ const OrdersPage = () => {
 
   // Calculate order totals
   const calculateTotals = () => {
+    const defaultChargeableDays = orderForm.values.defaultChargeableDays || 1;
     const subtotal = orderItems.reduce((sum, item) => {
       const quantity = item.quantity || 0;
       const unitPrice = item.unitPrice || 0;
-      const daysUsed =
-        item.daysUsed || orderForm.values.defaultChargeableDays || 1;
-      return sum + quantity * unitPrice * daysUsed;
+      return sum + quantity * unitPrice * defaultChargeableDays;
     }, 0);
     return { subtotal };
   };
@@ -936,9 +935,9 @@ const OrdersPage = () => {
         />
       )}
 
-      {/* Status Change Handler - Automatic task recording on status changes */}
+      {/* Order Status Manager - Automatic task recording on status changes */}
       {showStatusChangeHandler && statusChangeData && (
-        <StatusChangeHandler
+        <OrderStatusManager
           order={statusChangeData.order}
           previousStatus={statusChangeData.previousStatus}
           newStatus={statusChangeData.newStatus}

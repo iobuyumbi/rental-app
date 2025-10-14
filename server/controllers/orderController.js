@@ -133,6 +133,8 @@ const createOrder = asyncHandler(async (req, res) => {
   
   // Calculate total amount
   let totalAmount = 0;
+  const defaultChargeableDays = req.body.defaultChargeableDays || 1;
+  
   for (const item of items) {
     const productId = item.productId || item.product;
     const quantity = item.quantity || item.quantityRented || 1;
@@ -142,7 +144,7 @@ const createOrder = asyncHandler(async (req, res) => {
       res.status(400);
       throw new Error(`Product ${productId} not found`);
     }
-    totalAmount += product.rentalPrice * quantity;
+    totalAmount += product.rentalPrice * quantity * defaultChargeableDays;
   }
   
   // Create order

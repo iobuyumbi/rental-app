@@ -53,7 +53,7 @@ const orderSchema = {
 };
 
 router.post("/", validateBody(orderSchema), createOrder);
-router.put("/:id", validateBody(orderSchema), updateOrder);
+router.put("/:id", updateOrder);
 router.put("/:id/return", markOrderReturned);
 router.post("/:id/discount/request", requestDiscount);
 router.put("/:id/payment", updatePayment);
