@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { inventoryAPI, ordersAPI } from '../../services/api';
-import { fixInventoryQuantities } from '../../utils/fixInventory';
+import { fixInventoryQuantities } from '../../utils/inventoryUtils';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { RefreshCw, Package, ShoppingCart, Wrench } from 'lucide-react';

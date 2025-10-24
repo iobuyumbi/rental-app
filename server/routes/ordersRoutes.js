@@ -17,6 +17,7 @@ const {
   bulkResolveViolations,
   deleteViolation,
   exportViolations,
+  updateOrderStatus,
 } = require("../controllers/orderController");
 const { protect, admin, adminOrAssistant } = require("../middleware/auth");
 const { validateBody } = require("../middleware/validate");
@@ -54,6 +55,7 @@ const orderSchema = {
 
 router.post("/", validateBody(orderSchema), createOrder);
 router.put("/:id", updateOrder);
+router.put("/:id/status", updateOrderStatus);
 router.put("/:id/return", markOrderReturned);
 router.post("/:id/discount/request", requestDiscount);
 router.put("/:id/payment", updatePayment);

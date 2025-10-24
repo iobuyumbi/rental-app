@@ -1,11 +1,13 @@
 /** @type {import('tailwindcss').Config} */
 import animate from 'tw-animate-css';
-export default {
-  // Include index.html and all JS/JSX in src
-  content: ["./index.html", "./src/**/*.{js,jsx}"],
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './src/**/*.{js,jsx,ts,tsx}',
+    './public/index.html',
+  ],
   theme: {
     extend: {},
   },
-  // Import and enable the animate plugin
   plugins: [animate],
 };

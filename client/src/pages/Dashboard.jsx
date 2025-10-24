@@ -10,8 +10,7 @@ import {
   DollarSign, 
   TrendingUp, 
   AlertTriangle,
-  Plus,
-  Eye
+  Plus
 } from 'lucide-react';
 import { inventoryAPI, ordersAPI, workersAPI, reportsAPI } from '../services/api';
 
@@ -75,14 +74,19 @@ const Dashboard = () => {
       
       // Extract data safely with fallbacks (handleResponse now extracts data automatically)
       const inventoryData = inventoryResponse.status === 'fulfilled' ? (inventoryResponse.value || { totalProducts: 0 }) : { totalProducts: 0 };
-      const ordersData = ordersResponse.status === 'fulfilled' ? (ordersResponse.value || []) : [];
+      const ordersResponse_data = ordersResponse.status === 'fulfilled' ? ordersResponse.value : [];
       const workersData = workersResponse.status === 'fulfilled' ? (workersResponse.value || []) : [];
       const overdueData = overdueResponse.status === 'fulfilled' ? (overdueResponse.value || []) : [];
       
-      // Calculate revenue safely
+      // Handle orders data - it might be nested in a data property
+      const ordersData = Array.isArray(ordersResponse_data) ? ordersResponse_data : 
+                        (ordersResponse_data && Array.isArray(ordersResponse_data.data) ? ordersResponse_data.data : []);
+      
+      // Calculate revenue from all orders with valid amounts
+      // Using actual totalAmount from orders (no labor costs deducted yet)
       const totalRevenue = Array.isArray(ordersData) ? ordersData.reduce((sum, order) => {
-        const amount = parseFloat(order.totalAmount) || 0;
-        return sum + amount;
+        const amount = parseFloat(order.totalAmount) || parseFloat(order.amountPaid) || 0;
+        return sum + amount; // Actual revenue without labor deductions
       }, 0) : 0;
       
       const pendingOrders = Array.isArray(ordersData) ? ordersData.filter(order => order.status === 'Pending').length : 0;

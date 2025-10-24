@@ -28,6 +28,11 @@ const TaskRatesTable = ({
     },
     { key: 'description', label: 'Description' },
     {
+      key: 'effectiveDate',
+      label: 'Effective Date',
+      render: (value) => value ? new Date(value).toLocaleDateString() : 'Not set'
+    },
+    {
       key: 'actions',
       label: 'Actions',
       render: (_, row) => (

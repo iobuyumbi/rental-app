@@ -234,8 +234,9 @@ const getWorkerEarnings = asyncHandler(async (req, res) => {
   // Calculate earnings for each task
   const tasksWithEarnings = workerTasks.map((task) => {
     const presentWorkers = task.workers.filter((w) => w.present).length;
-    const shareAmount =
-      presentWorkers > 0 ? task.taskAmount / presentWorkers : 0;
+    // Each worker gets the full task amount (their daily rate)
+    // No division - each worker is paid their full daily rate per order per day
+    const shareAmount = task.taskAmount;
 
     return {
       _id: task._id,

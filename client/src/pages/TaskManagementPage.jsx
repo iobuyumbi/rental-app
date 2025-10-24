@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { useAuth } from '../context/AuthContext';
 
 import { useDataManager } from '../hooks/useDataManager';
 import { useFormManager } from '../hooks/useFormManager';
@@ -15,7 +16,8 @@ import TaskRatesTable from '../components/tasks/TaskRatesTable';
 import TaskCompletionsTable from '../components/tasks/TaskCompletionsTable';
 
 const TaskManagementPage = () => {
-  const [activeTab, setActiveTab] = useState('rates');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('completions');
   const [showAddRate, setShowAddRate] = useState(false);
   const [showRecordTask, setShowRecordTask] = useState(false);
   const [editingRate, setEditingRate] = useState(null);
@@ -27,20 +29,35 @@ const TaskManagementPage = () => {
   const ratesManager = useDataManager({
     fetchFn: useCallback(async () => {
       const result = await taskRateAPI.getAll({ active: 'true' });
-      // Return the actual data array from the nested structure
-      return result.data.data || [];
+      // Handle different response structures
+      return result?.data?.data || result?.data || result || [];
     }, []),
-    createFn: useCallback((data) => taskRateAPI.create(data), []),
-    updateFn: useCallback((id, data) => taskRateAPI.update(id, data), []),
+    createFn: useCallback((data) => taskRateAPI.create({
+      ...data,
+      createdBy: user?._id || user?.id || 'system'
+    }), [user]),
+    updateFn: useCallback((id, data) => taskRateAPI.update(id, {
+      ...data,
+      createdBy: user?._id || user?.id || 'system'
+    }), [user]),
     deleteFn: useCallback((id) => taskRateAPI.delete(id), []),
     entityName: 'task rate'
   });
 
   // Task Completions Management
   const completionsManager = useDataManager({
-    fetchFn: useCallback(() => taskCompletionAPI.getAll(), []),
-    createFn: useCallback((data) => taskCompletionAPI.record(data), []),
-    updateFn: useCallback((id, data) => taskCompletionAPI.update(id, data), []),
+    fetchFn: useCallback(async () => {
+      const result = await taskCompletionAPI.getAll();
+      return result?.data?.data || result?.data || result || [];
+    }, []),
+    createFn: useCallback((data) => taskCompletionAPI.record({
+      ...data,
+      createdBy: user?._id || user?.id || 'system'
+    }), [user]),
+    updateFn: useCallback((id, data) => taskCompletionAPI.update(id, {
+      ...data,
+      createdBy: user?._id || user?.id || 'system'
+    }), [user]),
     entityName: 'task completion'
   });
 
@@ -50,12 +67,14 @@ const TaskManagementPage = () => {
     taskName: '',
     ratePerUnit: '',
     unit: '',
-    description: ''
+    description: '',
+    effectiveDate: new Date().toISOString().split('T')[0]
   }, {
     taskType: { required: true },
     taskName: { required: true },
     ratePerUnit: { required: true, min: 0 },
-    unit: { required: true }
+    unit: { required: true },
+    effectiveDate: { required: true }
   });
 
   const taskForm = useFormManager({
@@ -78,11 +97,11 @@ const TaskManagementPage = () => {
   const loadSupportingData = async () => {
     try {
       const [ordersRes, workersRes] = await Promise.all([
-        ordersAPI.getAll(),
+        ordersAPI.getOrders({}),
         workersAPI.workers.get()
       ]);
-      setOrders(ordersRes.data?.data || []);
-      setWorkers(workersRes.data?.data || []);
+      setOrders(ordersRes?.data || ordersRes || []);
+      setWorkers(workersRes?.data || workersRes || []);
     } catch (error) {
       console.error('Error loading supporting data:', error);
       toast.error('Failed to load orders and workers');
@@ -93,10 +112,16 @@ const TaskManagementPage = () => {
   const handleAddRate = async (e) => {
     e.preventDefault();
     try {
-      await ratesManager.createItem({
+      const taskRateData = {
         ...rateForm.values,
-        ratePerUnit: parseFloat(rateForm.values.ratePerUnit)
-      });
+        ratePerUnit: parseFloat(rateForm.values.ratePerUnit),
+        effectiveDate: rateForm.values.effectiveDate || new Date().toISOString().split('T')[0],
+        createdBy: user?._id || user?.id || 'system'
+      };
+      
+      console.log('Creating task rate with data:', taskRateData);
+      
+      await ratesManager.createItem(taskRateData);
       toast.success('Task rate added successfully');
       setShowAddRate(false);
       rateForm.reset();
@@ -108,17 +133,28 @@ const TaskManagementPage = () => {
 
   const handleEditRate = (rate) => {
     setEditingRate(rate);
-    rateForm.updateValues(rate);
+    // Ensure effectiveDate is set if missing
+    const rateWithDate = {
+      ...rate,
+      effectiveDate: rate.effectiveDate || new Date().toISOString().split('T')[0]
+    };
+    rateForm.updateValues(rateWithDate);
     setShowAddRate(true);
   };
 
   const handleUpdateRate = async (e) => {
     e.preventDefault();
     try {
-      await ratesManager.updateItem(editingRate._id, {
+      const taskRateData = {
         ...rateForm.values,
-        ratePerUnit: parseFloat(rateForm.values.ratePerUnit)
-      });
+        ratePerUnit: parseFloat(rateForm.values.ratePerUnit),
+        effectiveDate: rateForm.values.effectiveDate || new Date().toISOString().split('T')[0],
+        createdBy: user?._id || user?.id || 'system'
+      };
+      
+      console.log('Updating task rate with data:', taskRateData);
+      
+      await ratesManager.updateItem(editingRate._id, taskRateData);
       toast.success('Task rate updated successfully');
       setShowAddRate(false);
       setEditingRate(null);
@@ -144,17 +180,44 @@ const TaskManagementPage = () => {
   // Task Completion handlers
   const handleRecordTask = async (e) => {
     e.preventDefault();
+    
+    // Validation
+    if (!taskForm.values.taskRateId) {
+      toast.error('Please select a task rate');
+      return;
+    }
+    
+    if (!taskForm.values.quantityCompleted || parseInt(taskForm.values.quantityCompleted) <= 0) {
+      toast.error('Please enter a valid quantity completed');
+      return;
+    }
+    
+    if (selectedWorkers.length === 0) {
+      toast.error('Please select at least one worker');
+      return;
+    }
+    
     try {
       const workersPresent = selectedWorkers.map(workerId => ({
         worker: workerId,
         hoursWorked: 8 // Default 8 hours, can be customized
       }));
 
-      await completionsManager.createItem({
+      // Prepare task completion data, filtering out empty orderId
+      const taskCompletionData = {
         ...taskForm.values,
         quantityCompleted: parseInt(taskForm.values.quantityCompleted),
         workersPresent
-      });
+      };
+      
+      // Remove orderId if it's empty (for general tasks)
+      if (!taskCompletionData.orderId || taskCompletionData.orderId === '') {
+        delete taskCompletionData.orderId;
+      }
+      
+      console.log('Submitting task completion data:', taskCompletionData);
+      
+      await completionsManager.createItem(taskCompletionData);
       
       toast.success('Task completion recorded successfully');
       setShowRecordTask(false);
@@ -162,7 +225,8 @@ const TaskManagementPage = () => {
       setSelectedWorkers([]);
     } catch (error) {
       console.error('Error recording task completion:', error);
-      toast.error('Failed to record task completion');
+      const errorMessage = error.message || 'Failed to record task completion';
+      toast.error(errorMessage);
     }
   };
 

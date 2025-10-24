@@ -1,107 +1,133 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Checkbox } from '../ui/checkbox';
+import { Loader2, CheckCircle, AlertTriangle, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
-import WorkerTaskRecorder from '../workers/WorkerTaskRecorder';
-import DateValidationHandler from './DateValidationHandler';
-import { calculateSuggestedAmount } from '../../utils/workerTaskUtils';
-import { smsAPI } from '../../services/smsAPI';
+import { workersAPI } from '../../services/api';
+import { workerTasksAPI } from '../../api/workerTasksAPI';
 
 /**
- * StatusChangeHandler - Automatically handles worker task recording when order status changes
- * Specifically triggers when status changes to 'in_progress' (items rented out)
+ * StatusChangeHandler - Orchestrates the complete workflow after status changes
+ * Handles worker task recording, date validation, and financial adjustments
  */
 const StatusChangeHandler = ({ 
   order, 
   previousStatus, 
   newStatus, 
-  workers = [], 
   onTaskCreated,
   onComplete,
-  onOrderUpdate // New prop to handle order updates with adjusted amounts
+  onOrderUpdate 
 }) => {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showDateValidation, setShowDateValidation] = useState(false);
   const [taskData, setTaskData] = useState(null);
-  const [dateValidationResult, setDateValidationResult] = useState(null);
+  const [workers, setWorkers] = useState([]);
+  const [loadingWorkers, setLoadingWorkers] = useState(false);
 
+  // Effect runs when status changes to trigger appropriate workflows
   useEffect(() => {
-    // Check if status changed to 'in_progress' from any other status
     if (newStatus === 'in_progress' && previousStatus !== 'in_progress') {
       handleStatusChangeToInProgress();
-    }
-    // Check if status changed to 'completed' from 'in_progress' 
-    else if (newStatus === 'completed' && previousStatus === 'in_progress') {
+    } else if (newStatus === 'completed' && previousStatus === 'in_progress') {
       handleStatusChangeToCompleted();
+    } else {
+      // For other status changes, just complete
+      if (onComplete) {
+        onComplete();
+      }
     }
   }, [newStatus, previousStatus]);
 
+  const loadWorkers = async () => {
+    try {
+      setLoadingWorkers(true);
+      const response = await workersAPI.workers.get();
+      setWorkers(Array.isArray(response) ? response : response?.data || []);
+    } catch (error) {
+      console.error('Error loading workers:', error);
+      toast.error('Failed to load workers');
+    } finally {
+      setLoadingWorkers(false);
+    }
+  };
+
+  const calculateTaskAmount = (orderItems, taskType) => {
+    const baseValue = orderItems?.reduce((sum, item) => 
+      sum + (item.quantityRented || 1) * (item.unitPriceAtTimeOfRental || 100)
+    , 0) || 1000;
+
+    // 1% of total order value for administrative tasks
+    return Math.round(baseValue * 0.01);
+  };
+
   const handleStatusChangeToInProgress = async () => {
-    // Server automatically handles inventory reduction, so proceed directly to worker task recording
-    const suggestedAmount = calculateTaskAmount(order.items || [], 'issuing');
+    await loadWorkers();
+    
+    const suggestedAmount = calculateTaskAmount(order.orderItems || [], 'issuing');
     
     const issuingTaskData = {
       order: order._id,
       taskType: 'issuing',
       taskAmount: suggestedAmount,
       notes: `Items issued for order #${order._id?.slice(-6).toUpperCase()}. Status changed to In Progress.`,
-      workers: workers.map(worker => ({
-        worker: worker._id,
-        present: false
-      }))
+      workers: []
     };
 
     setTaskData(issuingTaskData);
     setShowTaskModal(true);
     
-    // Send SMS notification for order confirmation
-    await sendSMSNotification('confirmation');
-    
     toast.success('Order status updated. Please record workers who issued the items.');
   };
 
   const handleStatusChangeToCompleted = () => {
-    // First show date validation to check return dates and calculate adjustments
     setShowDateValidation(true);
     toast.info('Order completed. Please validate return date and usage calculation.');
   };
 
   const handleDateValidationComplete = async (validationResult) => {
-    setDateValidationResult(validationResult);
     setShowDateValidation(false);
 
     try {
-      // Server automatically handles inventory restoration, so focus on order amount updates
-      if (validationResult.requiresAdjustment && onOrderUpdate) {
-        await onOrderUpdate(order._id, {
+      let adjustmentMessage = 'Order completed successfully.';
+
+      if (validationResult.requiresAdjustment) {
+        const updateData = {
           totalAmount: validationResult.adjustedAmount,
-          actualReturnDate: validationResult.actualReturnDate,
-          usageCalculation: validationResult.calculations
-        });
-        
-        if (validationResult.calculations.isEarlyReturn) {
-          toast.success(`Order completed. Amount adjusted with refund of KES ${validationResult.calculations.refundAmount.toLocaleString()}.`);
-        } else if (validationResult.calculations.isLateReturn) {
-          toast.warning(`Order completed. Late return penalty of KES ${validationResult.calculations.penaltyAmount.toLocaleString()} applied.`);
+          chargeableDays: validationResult.newChargeableDays,
+          actualReturnDate: validationResult.actualReturnDate
+        };
+
+        if (onOrderUpdate) {
+          await onOrderUpdate(order._id, updateData);
         }
-      } else {
-        toast.success('Order completed successfully.');
+
+        if (validationResult.calculations.isEarlyReturn) {
+          adjustmentMessage = `Order completed. Amount adjusted with refund of KES ${Math.abs(validationResult.calculations.refundAmount).toLocaleString()}.`;
+        } else if (validationResult.calculations.isLateReturn) {
+          adjustmentMessage = `Order completed. Late return penalty of KES ${validationResult.calculations.penaltyAmount.toLocaleString()} applied.`;
+        }
       }
+
+      toast.success(adjustmentMessage);
     } catch (error) {
       console.error('Error updating order amount:', error);
       toast.error('Failed to update order amount');
     }
 
-    // Now proceed with worker task recording
-    const suggestedAmount = calculateTaskAmount(order.items || [], 'receiving');
+    // Load workers and show receiving task modal
+    await loadWorkers();
+    
+    const suggestedAmount = calculateTaskAmount(order.orderItems || [], 'receiving');
     
     const receivingTaskData = {
       order: order._id,
       taskType: 'receiving',
       taskAmount: suggestedAmount,
       notes: `Items received back for order #${order._id?.slice(-6).toUpperCase()}. Returned on ${validationResult.actualReturnDate}.`,
-      workers: workers.map(worker => ({
-        worker: worker._id,
-        present: false
-      }))
+      workers: []
     };
 
     setTaskData(receivingTaskData);
@@ -110,6 +136,8 @@ const StatusChangeHandler = ({
 
   const handleDateValidationCancel = () => {
     setShowDateValidation(false);
+    toast.warning('Date validation skipped. Order status is now Completed, but charges may be inaccurate.');
+    
     if (onComplete) {
       onComplete();
     }
@@ -124,11 +152,6 @@ const StatusChangeHandler = ({
       setShowTaskModal(false);
       setTaskData(null);
       
-      // Send completion SMS if this was a receiving task (order completed)
-      if (submittedTaskData.taskType === 'receiving') {
-        await sendSMSNotification('completion');
-      }
-      
       toast.success('Worker task recorded for status change');
       
       if (onComplete) {
@@ -136,7 +159,7 @@ const StatusChangeHandler = ({
       }
     } catch (error) {
       console.error('Error recording task for status change:', error);
-      throw error; // Let WorkerTaskModal handle the error display
+      throw error;
     }
   };
 
@@ -144,50 +167,12 @@ const StatusChangeHandler = ({
     setShowTaskModal(false);
     setTaskData(null);
     
-    // Still call onComplete even if user cancels
     if (onComplete) {
       onComplete();
     }
   };
 
-  // SMS notification handler
-  const sendSMSNotification = async (type) => {
-    try {
-      if (!order.client?.phone) {
-        console.warn('No phone number available for SMS notification');
-        return;
-      }
-
-      let result;
-      switch (type) {
-        case 'confirmation':
-          result = await smsAPI.sendOrderConfirmation(order._id);
-          toast.success('Order confirmation SMS sent to client');
-          break;
-        case 'reminder':
-          result = await smsAPI.sendRentalReminder(order._id);
-          toast.success('Rental reminder SMS sent to client');
-          break;
-        case 'completion':
-          // Send completion notification
-          const message = `Thank you! Your rental order #${order._id.slice(-6)} has been completed. Items returned successfully. We appreciate your business!`;
-          result = await smsAPI.sendSMS({
-            phoneNumber: order.client.phone,
-            message
-          });
-          toast.success('Order completion SMS sent to client');
-          break;
-        default:
-          console.warn('Unknown SMS notification type:', type);
-      }
-    } catch (error) {
-      console.error('Error sending SMS notification:', error);
-      // Don't show error toast to avoid disrupting the main workflow
-    }
-  };
-
-  // Dynamic modal content based on task type
-  const getModalContent = () => {
+  const modalContent = useMemo(() => {
     if (!taskData) return {};
     
     switch (taskData.taskType) {
@@ -210,13 +195,11 @@ const StatusChangeHandler = ({
           label: 'Record Task'
         };
     }
-  };
-
-  const modalContent = getModalContent();
+  }, [taskData]);
 
   return (
     <>
-      {/* Date Validation Modal - Shows first when completing order */}
+      {/* Date Validation Modal */}
       <DateValidationHandler
         isOpen={showDateValidation}
         order={order}
@@ -224,13 +207,14 @@ const StatusChangeHandler = ({
         onCancel={handleDateValidationCancel}
       />
 
-      {/* Worker Task Modal - Shows after date validation */}
+      {/* Worker Task Modal */}
       {showTaskModal && taskData && (
         <WorkerTaskRecorder
           isOpen={showTaskModal}
           onClose={handleCloseModal}
           order={order}
           workers={workers}
+          loadingWorkers={loadingWorkers}
           onSubmit={handleTaskSubmit}
           taskTypePreset={{
             type: taskData.taskType,
@@ -243,6 +227,260 @@ const StatusChangeHandler = ({
         />
       )}
     </>
+  );
+};
+
+/**
+ * DateValidationHandler - Validates return dates and calculates financial adjustments
+ */
+const DateValidationHandler = ({ isOpen, order, onValidationComplete, onCancel }) => {
+  const [returnDate, setReturnDate] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setReturnDate(new Date().toISOString().split('T')[0]);
+    }
+  }, [isOpen]);
+
+  const handleValidate = () => {
+    setLoading(true);
+    
+    const actualReturnDate = new Date(returnDate);
+    const expectedReturnDate = new Date(order.rentalEndDate);
+    const plannedDays = order.chargeableDays || 1;
+
+    // Calculate days difference
+    const dayDiff = Math.ceil((actualReturnDate - expectedReturnDate) / (1000 * 60 * 60 * 24));
+
+    let newChargeableDays = plannedDays;
+    let requiresAdjustment = false;
+    let calculations = {};
+
+    if (dayDiff > 0) {
+      // Late return
+      newChargeableDays += dayDiff;
+      requiresAdjustment = true;
+      const penaltyAmount = dayDiff * (order.totalAmount / plannedDays) * 1.5; // 50% penalty
+      calculations = { 
+        isLateReturn: true, 
+        penaltyDays: dayDiff, 
+        penaltyAmount: Math.round(penaltyAmount)
+      };
+    } else if (dayDiff < 0) {
+      // Early return
+      newChargeableDays = Math.max(1, plannedDays + dayDiff);
+      requiresAdjustment = true;
+      const refundAmount = -dayDiff * (order.totalAmount / plannedDays);
+      calculations = { 
+        isEarlyReturn: true, 
+        refundDays: -dayDiff, 
+        refundAmount: -Math.round(refundAmount)
+      };
+    }
+
+    const adjustedAmount = Math.round((order.totalAmount / plannedDays) * newChargeableDays);
+
+    setTimeout(() => {
+      setLoading(false);
+      onValidationComplete({
+        requiresAdjustment,
+        adjustedAmount,
+        actualReturnDate: returnDate,
+        calculations,
+        newChargeableDays
+      });
+    }, 500);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onCancel}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Validate Order Completion Date</DialogTitle>
+          <DialogDescription>
+            Order is marked as completed. Please confirm the actual return date to calculate final charges.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Expected Return Date:</Label>
+            <div className="p-2 bg-yellow-50 rounded-md font-medium text-sm">
+              {new Date(order.rentalEndDate).toLocaleDateString()} ({order.chargeableDays} days)
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="returnDate">Actual Return Date</Label>
+            <Input
+              id="returnDate"
+              type="date"
+              value={returnDate}
+              onChange={(e) => setReturnDate(e.target.value)}
+            />
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+              Skip/Cancel
+            </Button>
+            <Button type="button" onClick={handleValidate} disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Calculating...
+                </>
+              ) : (
+                'Confirm Date & Adjust'
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+/**
+ * WorkerTaskRecorder - Records which workers were involved in status change tasks
+ */
+const WorkerTaskRecorder = ({ 
+  isOpen, 
+  onClose, 
+  workers, 
+  loadingWorkers,
+  onSubmit, 
+  taskTypePreset, 
+  title, 
+  subtitle 
+}) => {
+  const [loading, setLoading] = useState(false);
+  const [workersPresent, setWorkersPresent] = useState({});
+
+  const handleToggleWorker = (workerId) => {
+    setWorkersPresent(prev => ({
+      ...prev,
+      [workerId]: !prev[workerId]
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const presentWorkers = Object.entries(workersPresent)
+      .filter(([id, present]) => present)
+      .map(([workerId]) => ({ 
+        worker: workerId, 
+        present: true 
+      }));
+
+    const submittedData = {
+      ...taskTypePreset,
+      workers: presentWorkers,
+      actualAmount: taskTypePreset.suggestedAmount,
+    };
+
+    try {
+      // Create the actual worker task
+      await workerTasksAPI.tasks.create({
+        order: submittedData.order,
+        taskType: submittedData.type,
+        taskAmount: submittedData.actualAmount,
+        workers: presentWorkers,
+        completedAt: new Date().toISOString(),
+        notes: submittedData.description
+      });
+      
+      onSubmit(submittedData);
+    } catch (error) {
+      toast.error(error.message || 'Failed to record worker task.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{subtitle}</DialogDescription>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="p-3 bg-indigo-50 rounded-lg text-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <DollarSign className="h-4 w-4 text-indigo-600" />
+              <span className="font-bold text-indigo-800">
+                Task Amount: KES {taskTypePreset.suggestedAmount?.toLocaleString()}
+              </span>
+            </div>
+            <p className="text-xs text-gray-600">{taskTypePreset.description}</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Select Workers Present:</Label>
+            {loadingWorkers ? (
+              <div className="flex items-center justify-center p-4 text-sm text-gray-500">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Loading workers...
+              </div>
+            ) : workers.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 bg-gray-50 rounded-lg">
+                No workers available
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg">
+                {workers.map(worker => (
+                  <div
+                    key={worker._id}
+                    className={`flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors ${
+                      workersPresent[worker._id] 
+                        ? 'bg-indigo-100 border-indigo-300' 
+                        : 'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                    onClick={() => handleToggleWorker(worker._id)}
+                  >
+                    <Checkbox 
+                      checked={workersPresent[worker._id] || false}
+                      onChange={() => handleToggleWorker(worker._id)}
+                    />
+                    <span className="text-sm font-medium">
+                      {worker.name}
+                    </span>
+                    {workersPresent[worker._id] && (
+                      <CheckCircle className="h-4 w-4 text-green-500 ml-auto" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading || workers.length === 0}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Recording...
+                </>
+              ) : (
+                taskTypePreset.label
+              )}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };
 

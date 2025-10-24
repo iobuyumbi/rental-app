@@ -30,30 +30,49 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "Inventory", href: "/inventory", icon: Package },
-  { name: "Orders", href: "/orders", icon: ShoppingCart },
-  { name: "Clients", href: "/clients", icon: User },
-  { name: "Workers", href: "/workers", icon: Users },
-  { name: "Worker Tasks", href: "/worker-tasks", icon: DollarSign },
-  { name: "Task Management", href: "/task-management", icon: ClipboardList },
-  { name: "Transactions", href: "/transactions", icon: Wrench },
-  { name: "Violations", href: "/violations", icon: AlertTriangle },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "SMS", href: "/sms", icon: MessageSquare },
-  { name: "Reports", href: "/reports", icon: FileText },
-];
-
-const adminNavigation = [
-  { name: "User Management", href: "/users", icon: Settings },
-];
-
+// Grouped navigation to declutter sidebar
 const Layout = ({ children, fullBleed = false }) => {
-  // Fixed sidebar implementation without SidebarProvider
+  // State for sidebar and dropdowns
+  const [ordersOpen, setOrdersOpen] = useState(false);
+  const [workersOpen, setWorkersOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout, isAdmin } = useAuth();
   const location = useLocation();
+
+  const toggleOrders = () => setOrdersOpen(!ordersOpen);
+  const toggleWorkers = () => setWorkersOpen(!workersOpen);
+
+  const navigation = [
+  { name: "Dashboard", href: "/dashboard", icon: Home },
+  {
+    name: "Orders",
+    icon: ShoppingCart,
+    children: [
+      { name: "All Orders", href: "/orders", onClick: toggleOrders },
+      { name: "Violations", href: "/violations" },
+    ],
+    isOpen: ordersOpen,
+  },
+  {
+    name: "Workers",
+    icon: Users,
+    children: [
+      { name: "Workers", href: "/workers", onClick: toggleWorkers },
+      { name: "Task Management", href: "/task-management" },
+    ],
+    isOpen: workersOpen,
+  },
+  { name: "Inventory", href: "/inventory", icon: Package },
+  { name: "Clients", href: "/clients", icon: User },
+  { name: "Transactions", href: "/transactions", icon: Wrench },
+  { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "SMS", href: "/sms", icon: MessageSquare },
+  { name: "Reports", href: "/reports", icon: FileText },
+  ];
+
+  const adminNavigation = [
+    { name: "User Management", href: "/users", icon: Settings },
+  ];
 
   const handleLogout = () => logout();
 
@@ -102,21 +121,72 @@ const Layout = ({ children, fullBleed = false }) => {
         {/* Navigation */}
         <nav className="flex-1 px-4 py-4 space-y-2">
           {navigation.map((item) => {
-            const isActive = location.pathname === item.href;
+            const isGroup = !!item.children;
+            if (!isGroup) {
+              const isActive = location.pathname === item.href;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            }
+
+            const isAnyChildActive = item.children.some(
+              (c) => location.pathname === c.href
+            );
+            const [open, setOpen] = [isAnyChildActive];
+            const Icon = item.icon;
+
             return (
-              <Link
-                key={item.name}
-                to={item.href}
-                className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-700 hover:bg-gray-100"
-                }`}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <item.icon className="w-5 h-5" />
-                <span>{item.name}</span>
-              </Link>
+              <div key={item.name} className="space-y-1">
+                <button
+                  type="button"
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isAnyChildActive
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <span className="flex items-center space-x-3">
+                    <Icon className="w-5 h-5" />
+                    <span>{item.name}</span>
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {isAnyChildActive ? "-" : "+"}
+                  </span>
+                </button>
+                <div className="pl-9 space-y-1">
+                  {item.children.map((child) => {
+                    const isActive = location.pathname === child.href;
+                    return (
+                      <Link
+                        key={child.name}
+                        to={child.href}
+                        className={`block px-3 py-1.5 rounded-md text-sm transition-colors ${
+                          isActive
+                            ? "bg-blue-50 text-blue-700"
+                            : "text-gray-700 hover:bg-gray-100"
+                        }`}
+                        onClick={() => setSidebarOpen(false)}
+                      >
+                        {child.name}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
 
@@ -163,16 +233,26 @@ const Layout = ({ children, fullBleed = false }) => {
                 <Menu className="h-5 w-5" />
               </Button>
               <h1 className="text-xl font-semibold text-gray-900">
-                {navigation.find(
-                  (item) => item.href === location.pathname
-                )?.name || "Dashboard"}
+                {(() => {
+                  const direct = navigation.find(
+                    (item) => item.href === location.pathname
+                  );
+                  if (direct) return direct.name;
+                  for (const item of navigation) {
+                    if (item.children) {
+                      const child = item.children.find(
+                        (c) => c.href === location.pathname
+                      );
+                      if (child) return child.name;
+                    }
+                  }
+                  return "Dashboard";
+                })()}
               </h1>
             </div>
 
             <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600">
-                Welcome, {user?.name}
-              </div>
+              <div className="text-sm text-gray-600">Welcome, {user?.name}</div>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -202,13 +282,18 @@ const Layout = ({ children, fullBleed = false }) => {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link to="/profile" className="flex items-center">
-                      <User className="mr-2 h-4 w-4" />
-                      <span>Profile</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
+                  {ordersOpen && (
+                    <DropdownMenu>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem asChild>
+                          <Link to="/orders">All Orders</Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link to="/violations">Violations</Link>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                   <DropdownMenuItem
                     onClick={handleLogout}
                     className="text-red-600"
@@ -222,11 +307,8 @@ const Layout = ({ children, fullBleed = false }) => {
           </div>
         </header>
 
-        {/* Page Content */}
         <main
-          className={`flex-1 overflow-y-auto ${
-            fullBleed ? "p-0" : "p-6"
-          } w-full`}
+          className={`${fullBleed ? "p-0" : "p-6"} w-full`}
         >
           {children}
         </main>

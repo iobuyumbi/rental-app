@@ -3,7 +3,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Users, Clock, DollarSign, Edit, Trash2 } from 'lucide-react';
 import { workerTasksAPI } from '../../api/workerTasksAPI';
-import { formatDate, formatCurrency } from '../../utils/formatters';
+import { formatDate, formatCurrency } from '../../utils/formatUtils';
 
 const OrderTaskHistory = ({ 
   order, 

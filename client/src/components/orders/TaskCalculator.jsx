@@ -1,4 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { calculateChargeableDays, formatDate, calculateRentalPeriod } from '../../utils/dateUtils';
+import { handleError } from '../../utils/errorHandling.jsx';
 
 /**
  * Task Calculator - Calculates task amounts based on order items and task type
@@ -93,8 +98,11 @@ const getItemCategory = (itemName) => {
 
 /**
  * Calculates task amount based on order items and task type
+ * Enhanced version that can work with order dates for better integration
  */
-export const calculateTaskAmount = (orderItems = [], taskType, vehicleType = null, transportType = null) => {
+export const calculateTaskAmount = (orderItems = [], taskType, options = {}) => {
+  const { vehicleType = null, transportType = null, order = null } = options;
+  
   if (!orderItems || orderItems.length === 0) return 0;
   
   let totalAmount = 0;
@@ -126,6 +134,44 @@ export const calculateTaskAmount = (orderItems = [], taskType, vehicleType = nul
   });
   
   return Math.round(totalAmount);
+};
+
+/**
+ * Enhanced task amount calculation with order context
+ * Provides additional context like rental period for better task planning
+ */
+export const calculateTaskAmountWithContext = (order, taskType, options = {}) => {
+  if (!order) return { amount: 0, context: null };
+  
+  const amount = calculateTaskAmount(order.items || [], taskType, options);
+  
+  // Calculate additional context
+  const context = {
+    orderId: order._id,
+    clientName: order.client?.contactPerson || order.client?.name,
+    itemCount: (order.items || []).length,
+    totalQuantity: (order.items || []).reduce((sum, item) => 
+      sum + (item.quantityRented || item.quantity || 0), 0
+    ),
+    rentalPeriod: null,
+    chargeableDays: 1
+  };
+  
+  // Add rental period context if dates are available
+  if (order.rentalStartDate && order.rentalEndDate) {
+    context.chargeableDays = calculateChargeableDays(
+      order.rentalStartDate,
+      order.rentalEndDate,
+      1
+    );
+    context.rentalPeriod = {
+      start: order.rentalStartDate,
+      end: order.rentalEndDate,
+      days: context.chargeableDays
+    };
+  }
+  
+  return { amount, context };
 };
 
 /**
@@ -198,21 +244,35 @@ export const getTaskCalculationBreakdown = (orderItems = [], taskType, vehicleTy
 
 /**
  * Task Calculator Display Component
+ * Enhanced version with order context support
  */
 const TaskCalculator = ({ 
   orderItems, 
   taskType, 
   vehicleType = null, 
   transportType = null,
-  onAmountCalculated 
+  order = null,
+  onAmountCalculated,
+  showContext = false 
 }) => {
+  // Use enhanced calculation if order is provided
+  const calculationResult = React.useMemo(() => {
+    if (order) {
+      return calculateTaskAmountWithContext(order, taskType, { vehicleType, transportType });
+    }
+    
+    // Fallback to basic calculation
+    const amount = calculateTaskAmount(orderItems, taskType, { vehicleType, transportType });
+    return { amount, context: null };
+  }, [order, orderItems, taskType, vehicleType, transportType]);
+  
   const breakdown = getTaskCalculationBreakdown(orderItems, taskType, vehicleType, transportType);
   
   React.useEffect(() => {
     if (onAmountCalculated) {
-      onAmountCalculated(breakdown.total);
+      onAmountCalculated(calculationResult.amount);
     }
-  }, [breakdown.total, onAmountCalculated]);
+  }, [calculationResult.amount, onAmountCalculated]);
   
   if (breakdown.total === 0) {
     return (
@@ -226,7 +286,36 @@ const TaskCalculator = ({
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
       <div className="font-medium text-blue-800 mb-2">
         Task Amount Calculation
+        {calculationResult.context && showContext && (
+          <span className="text-xs font-normal text-blue-600 ml-2">
+            (Order #{calculationResult.context.orderId?.slice(-6).toUpperCase()})
+          </span>
+        )}
       </div>
+      
+      {/* Show order context if available */}
+      {calculationResult.context && showContext && (
+        <div className="bg-blue-100 rounded p-2 mb-2 text-xs">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="font-medium">Client:</span> {calculationResult.context.clientName}
+            </div>
+            <div>
+              <span className="font-medium">Items:</span> {calculationResult.context.itemCount} ({calculationResult.context.totalQuantity} total qty)
+            </div>
+            {calculationResult.context.rentalPeriod && (
+              <>
+                <div>
+                  <span className="font-medium">Rental Days:</span> {calculationResult.context.chargeableDays}
+                </div>
+                <div>
+                  <span className="font-medium">Period:</span> {new Date(calculationResult.context.rentalPeriod.start).toLocaleDateString()} - {new Date(calculationResult.context.rentalPeriod.end).toLocaleDateString()}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       
       {breakdown.fixedRate ? (
         <div className="space-y-1">
@@ -250,7 +339,7 @@ const TaskCalculator = ({
       
       <div className="border-t border-blue-300 mt-2 pt-2 flex justify-between font-medium text-blue-900">
         <span>Total Task Amount:</span>
-        <span>KES {breakdown.total.toLocaleString()}</span>
+        <span>KES {calculationResult.amount.toLocaleString()}</span>
       </div>
     </div>
   );

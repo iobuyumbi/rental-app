@@ -17,8 +17,9 @@ const TaskCompletionForm = ({
   return (
     <FormModal
       isOpen={isOpen}
-      onClose={onClose}
+      onOpenChange={onClose}
       title="Record Task Completion"
+      description="Record task completion for orders or general maintenance tasks"
       onSubmit={onSubmit}
     >
       <div className="grid grid-cols-2 gap-4">
@@ -45,20 +46,23 @@ const TaskCompletionForm = ({
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Order *
+            Order (Optional)
           </label>
           <select
-            value={formData.orderId}
+            value={formData.orderId || ""}
             onChange={(e) => onFormChange({ orderId: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
           >
-            <option value="">Select order...</option>
-            {orders.map(order => (
-              <option key={order._id} value={order._id}>
-                {order.orderNumber} - {order.clientName}
-              </option>
-            ))}
+            <option value="">No Order (General Task)</option>
+            {orders && orders.length > 0 ? (
+              orders.map(order => (
+                <option key={order._id} value={order._id}>
+                  {order.orderNumber} - {order.clientName}
+                </option>
+              ))
+            ) : (
+              <option value="" disabled>No orders available</option>
+            )}
           </select>
           {errors.orderId && (
             <p className="text-red-500 text-sm mt-1">{errors.orderId}</p>
@@ -92,27 +96,46 @@ const TaskCompletionForm = ({
         </div>
       </div>
       <div className="mt-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Workers Present *
-        </label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-sm font-medium text-gray-700">
+            Workers Present *
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              // This would open a worker creation modal
+              // For now, show a message
+              alert('Worker creation feature coming soon! Please add workers in the Workers page first.');
+            }}
+            className="text-sm text-blue-600 hover:text-blue-800"
+          >
+            + Add New Worker
+          </button>
+        </div>
         <div className="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
-          {workers.map(worker => (
-            <label key={worker._id} className="flex items-center space-x-2 py-1">
-              <input
-                type="checkbox"
-                checked={selectedWorkers.includes(worker._id)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setSelectedWorkers([...selectedWorkers, worker._id]);
-                  } else {
-                    setSelectedWorkers(selectedWorkers.filter(id => id !== worker._id));
-                  }
-                }}
-                className="rounded border-gray-300"
+          {workers && workers.length > 0 ? (
+            workers.map(worker => (
+              <label key={worker._id} className="flex items-center space-x-2 py-1">
+                <input
+                  type="checkbox"
+                  checked={selectedWorkers.includes(worker._id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedWorkers([...selectedWorkers, worker._id]);
+                    } else {
+                      setSelectedWorkers(selectedWorkers.filter(id => id !== worker._id));
+                    }
+                  }}
+                  className="rounded border-gray-300"
               />
               <span className="text-sm">{worker.name}</span>
             </label>
-          ))}
+          ))
+          ) : (
+            <div className="text-sm text-gray-500 text-center py-4">
+              No workers available. Please add workers first.
+            </div>
+          )}
         </div>
         <p className="text-sm text-gray-500 mt-1">
           Selected: {selectedWorkers.length} workers

@@ -33,6 +33,23 @@ const ViolationsPage = () => {
   const [selectedViolation, setSelectedViolation] = useState(null);
   const [isBulkResolve, setIsBulkResolve] = useState(false);
 
+  // Debounced filters to prevent too many API calls
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
+
+  // Debounce filter changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [filters]);
+
+  // Memoize the fetch function to prevent infinite re-renders
+  const fetchViolations = useCallback(() => {
+    return ordersAPI.getViolations(debouncedFilters);
+  }, [debouncedFilters]);
+
   // Use the data manager hook for violations
   const {
     data: violations,
@@ -43,7 +60,7 @@ const ViolationsPage = () => {
     deleteItem: deleteViolation,
     refresh: refreshViolations
   } = useDataManager({
-    fetchFn: () => ordersAPI.getViolations(filters),
+    fetchFn: fetchViolations,
     createFn: ordersAPI.createViolation,
     updateFn: ordersAPI.updateViolation,
     deleteFn: ordersAPI.deleteViolation,

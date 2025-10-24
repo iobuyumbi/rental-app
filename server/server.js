@@ -55,6 +55,9 @@ connectDB()
     console.error("❌ Database connection failed:", error.message);
   });
 
+app.use(helmet()); // Protect against well-known vulnerabilities
+app.use(compression()); // Compress responses to improve performance
+
 // Middleware - CORS configuration for development
 const parsedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
   .split(",")

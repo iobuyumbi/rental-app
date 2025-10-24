@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
 import { Button } from '../ui/button';
-import { Search, Plus, X } from 'lucide-react';
+import { Search, Plus, X, UserPlus } from 'lucide-react';
 
 const ClientSelector = ({
   clientSearch,
@@ -12,16 +12,36 @@ const ClientSelector = ({
   setSelectedClient,
   onAddNewClient,
   onClearClient,
-  placeholder = 'Search for a client...'
+  placeholder = 'Search client by name or phone...'
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
+
+  // Smart dropdown visibility logic from sample
+  useEffect(() => {
+    // Only show dropdown if there's search text and a selection hasn't been made, 
+    // or if search text doesn't match selected client
+    if (selectedClient && clientSearch) {
+      const displayName = selectedClient.name ? 
+        `${selectedClient.contactPerson} (${selectedClient.name})` : 
+        selectedClient.contactPerson;
+      if (clientSearch.trim() !== displayName.trim()) {
+        setShowDropdown(true);
+      } else {
+        setShowDropdown(false);
+      }
+    } else if (clientSearch.trim() !== '') {
+      setShowDropdown(true);
+    } else {
+      setShowDropdown(false);
+    }
+  }, [clientSearch, selectedClient]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
+        setShowDropdown(false);
       }
     };
 
@@ -29,87 +49,69 @@ const ClientSelector = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelectClient = (client) => {
+  const handleSelect = (client) => {
     setSelectedClient(client);
-    // Display individual's name with optional company name
     const displayName = client.name ? 
       `${client.contactPerson} (${client.name})` : 
       client.contactPerson;
     setClientSearch(displayName);
-    setIsOpen(false);
+    setShowDropdown(false);
   };
 
-  const handleClearClient = (e) => {
-    e.stopPropagation();
+  const handleClear = () => {
     setSelectedClient(null);
     setClientSearch('');
     onClearClient?.();
+    setShowDropdown(true); // Re-open dropdown/prompt for search
+  };
+
+  const handleSearchChange = (e) => {
+    setClientSearch(e.target.value);
+    setSelectedClient(null);
   };
 
   return (
-    <div className="relative w-full" ref={dropdownRef}>
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
+    <div className="relative">
+      <div className="flex items-center space-x-2">
+        <input
           type="text"
-          placeholder={placeholder}
           value={clientSearch}
-          onChange={(e) => {
-            setClientSearch(e.target.value);
-            if (!isOpen) setIsOpen(true);
-          }}
-          onFocus={() => setIsOpen(true)}
-          className="pl-10 pr-10"
+          onChange={handleSearchChange}
+          placeholder={placeholder}
+          className="flex-grow p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 border-gray-300"
         />
-        {clientSearch && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="absolute right-2 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
-            onClick={handleClearClient}
-          >
-            <X className="h-4 w-4" />
+        {selectedClient ? (
+          <Button variant="secondary" onClick={handleClear} title="Clear Selection">
+            <X className="w-4 h-4" />
+          </Button>
+        ) : (
+          <Button variant="outline" onClick={() => onAddNewClient(clientSearch)} title="Add New Client">
+            <UserPlus className="w-4 h-4" />
           </Button>
         )}
       </div>
 
-      {isOpen && (
-        <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover shadow-lg">
-          <ScrollArea className="max-h-60 rounded-md">
-            <div className="p-1">
-              {filteredClients.length > 0 ? (
-                filteredClients.map((client) => (
-                  <div
-                    key={client._id}
-                    className={`px-4 py-2 hover:bg-accent hover:text-accent-foreground cursor-pointer ${
-                      selectedClient?._id === client._id ? 'bg-accent' : ''
-                    }`}
-                    onClick={() => handleSelectClient(client)}
-                  >
-                    <div className="font-medium">{client.contactPerson}</div>
-                  </div>
-                ))
-              ) : (
-                <div className="flex items-center justify-between px-3 py-2 text-sm text-muted-foreground">
-                  <span>No clients found</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2 text-xs"
-                    onClick={() => {
-                      onAddNewClient?.(clientSearch);
-                      setIsOpen(false);
-                    }}
-                  >
-                    <Plus className="mr-1 h-3 w-3" />
-                    Add New
-                  </Button>
-                </div>
-              )}
+      {showDropdown && (
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto" ref={dropdownRef}>
+          {filteredClients.length > 0 ? (
+            filteredClients.map(client => (
+              <div
+                key={client._id}
+                className="p-3 cursor-pointer hover:bg-blue-50 transition-colors border-b last:border-b-0"
+                onClick={() => handleSelect(client)}
+              >
+                <p className="font-semibold">
+                  {client.contactPerson} 
+                  {client.name && <span className="text-gray-500 text-sm"> ({client.name})</span>}
+                </p>
+                <p className="text-xs text-gray-500">{client.email} | {client.phone}</p>
+              </div>
+            ))
+          ) : (
+            <div className="p-3 text-center text-gray-500 text-sm">
+              No clients found. <button onClick={() => onAddNewClient(clientSearch)} className="text-blue-600 underline">Add new?</button>
             </div>
-          </ScrollArea>
+          )}
         </div>
       )}
     </div>

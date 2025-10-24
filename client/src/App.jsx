@@ -5,7 +5,6 @@ import Dashboard from "./pages/Dashboard";
 import InventoryPage from "./pages/InventoryPage";
 import OrdersPage from "./pages/OrdersPage";
 import WorkersPage from "./pages/WorkersPage";
-import WorkerTasksPage from "./pages/WorkerTasksPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import ReportsPage from "./pages/ReportsPage";
 import UsersPage from "./pages/UsersPage";
@@ -16,6 +15,7 @@ import ViolationsPage from "./pages/ViolationsPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import SMSPage from "./pages/SMSPage";
 import InventoryDebug from "./components/debug/InventoryDebug";
+import { Button } from '@/components/ui/button';
 
 const ProtectedRoute = ({ requireAdmin = false }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
@@ -51,7 +51,6 @@ const App = () => {
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/clients" element={<ClientsPage />} />
         <Route path="/workers" element={<WorkersPage />} />
-        <Route path="/worker-tasks" element={<WorkerTasksPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/task-management" element={<TaskManagementPage />} />
         <Route path="/violations" element={<ViolationsPage />} />

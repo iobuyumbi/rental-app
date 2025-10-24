@@ -1,6 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 
+/**
+ * Custom hook for fetching and managing data state from an asynchronous API function.
+ * * @param {Function} apiFunction - The asynchronous function to call to fetch data.
+ * @param {Array<any>} dependencies - Dependencies array to trigger re-fetching (similar to useEffect).
+ * @returns {Object} State and actions: { data, loading, error, refetch, setData }
+ */
 const useDataLoader = (apiFunction, dependencies = []) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11,7 +17,8 @@ const useDataLoader = (apiFunction, dependencies = []) => {
       setLoading(true);
       setError(null);
       const response = await apiFunction();
-      setData(Array.isArray(response) ? response : []);
+      // Ensure data is always an array for component consumption
+      setData(Array.isArray(response) ? response : (response ? [response] : []));
     } catch (err) {
       console.error('Data loading error:', err);
       setError(err);
@@ -22,13 +29,18 @@ const useDataLoader = (apiFunction, dependencies = []) => {
     }
   };
 
+  // Initial load and dependency tracking
   useEffect(() => {
     loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies);
 
-  const refetch = () => {
+  // Memoize refetch function for stability
+  const refetch = useCallback(() => {
     loadData();
-  };
+  // We need to ensure that the refetch callback remains the same unless apiFunction changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiFunction]);
 
   return {
     data,

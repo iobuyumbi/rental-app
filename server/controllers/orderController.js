@@ -1,8 +1,20 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const Order = require('../models/Order');
-const OrderItem = require('../models/OrderItem');
+const { body } = require('express-validator');
+const { calculateOrderTotals, validateOrderCalculation } = require('../utils/orderCalculations');
+
+// Validation schema for order creation
+const orderSchema = [
+  body('client').notEmpty().withMessage('Client is required'),
+  body('rentalStartDate').isISO8601().toDate().withMessage('Valid start date is required'),
+  body('rentalEndDate').isISO8601().toDate().withMessage('Valid end date is required'),
+  body('items').isArray().withMessage('Items must be an array')
+];
+
+module.exports = orderSchema;
 const Client = require('../models/Client');
 const Product = require('../models/Product');
+const OrderItem = require('../models/OrderItem');
 const Violation = require('../models/Violation');
 
 // @desc    Get all orders
@@ -85,55 +97,32 @@ const getOrder = asyncHandler(async (req, res) => {
 // @route   POST /api/orders
 // @access  Private
 const createOrder = asyncHandler(async (req, res) => {
-  const { client, rentalStartDate, rentalEndDate, items, notes, status, amountPaid } = req.body;
+  const { client, rentalStartDate, rentalEndDate, items, notes, status, amountPaid, discount, taxRate } = req.body;
   
-  // Validate required fields
+  // Validate order data using utility function
+  const validation = validateOrderCalculation({
+    rentalStartDate,
+    rentalEndDate,
+    items
+  });
+  
+  if (!validation.isValid) {
+    res.status(400);
+    throw new Error(validation.errors.join(', '));
+  }
+  
   if (!client) {
     res.status(400);
     throw new Error('Client is required');
   }
   
-  if (!rentalStartDate) {
-    res.status(400);
-    throw new Error('Rental start date is required');
-  }
-  
-  if (!rentalEndDate) {
-    res.status(400);
-    throw new Error('Rental end date is required');
-  }
-  
-  if (!items || items.length === 0) {
-    res.status(400);
-    throw new Error('At least one item is required');
-  }
-  
-  // Validate dates
-  const startDate = new Date(rentalStartDate);
-  const endDate = new Date(rentalEndDate);
-  
-  if (isNaN(startDate.getTime())) {
-    res.status(400);
-    throw new Error('Invalid rental start date');
-  }
-  
-  if (isNaN(endDate.getTime())) {
-    res.status(400);
-    throw new Error('Invalid rental end date');
-  }
-  
-  if (startDate >= endDate) {
-    res.status(400);
-    throw new Error('Rental end date must be after start date');
-  }
-  
   // Calculate expected return date (3 days after rental end)
+  const endDate = new Date(rentalEndDate);
   const expectedReturnDate = new Date(endDate);
   expectedReturnDate.setDate(expectedReturnDate.getDate() + 3);
   
-  // Calculate total amount
-  let totalAmount = 0;
-  const defaultChargeableDays = req.body.defaultChargeableDays || 1;
+  // Prepare items with product pricing for calculation
+  const itemsWithPricing = [];
   
   for (const item of items) {
     const productId = item.productId || item.product;
@@ -144,19 +133,36 @@ const createOrder = asyncHandler(async (req, res) => {
       res.status(400);
       throw new Error(`Product ${productId} not found`);
     }
-    totalAmount += product.rentalPrice * quantity * defaultChargeableDays;
+    
+    itemsWithPricing.push({
+      ...item,
+      quantity,
+      unitPrice: product.rentalPrice,
+      productId
+    });
   }
   
-  // Create order
+  // Calculate totals using utility function
+  const calculations = calculateOrderTotals(
+    itemsWithPricing,
+    rentalStartDate,
+    rentalEndDate,
+    discount || 0,
+    taxRate || 16
+  );
+  
+  // Create order with calculated totals
   const order = await Order.create({
     client,
     rentalStartDate,
     rentalEndDate,
     expectedReturnDate,
-    totalAmount,
+    totalAmount: calculations.totalAmount,
     amountPaid: amountPaid || 0,
     status: status || 'pending',
-    notes
+    notes,
+    discountAmount: calculations.discountAmount,
+    discountApplied: calculations.discountAmount > 0
   });
   
   // Create order items and update product quantities
@@ -753,6 +759,54 @@ const deleteOrder = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Update order status
+// @route   PUT /api/orders/:id/status
+// @access  Private (Admin/Assistant)
+const updateOrderStatus = asyncHandler(async (req, res) => {
+  const { status, actualDate, chargeableDays, assignedWorker } = req.body;
+
+  // Validate required fields
+  if (!status) {
+    res.status(400);
+    throw new Error('Status is required');
+  }
+
+  // Find the order
+  const order = await Order.findById(req.params.id)
+    .populate('client', 'name email phone');
+
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
+  }
+
+  // Update order fields
+  order.status = status;
+  
+  if (actualDate) {
+    order.actualDate = new Date(actualDate);
+  }
+  
+  if (chargeableDays) {
+    order.chargeableDays = parseInt(chargeableDays);
+  }
+  
+  // Note: assignedWorker field removed as it doesn't exist in Order schema
+  // Workers are managed separately through task assignments
+
+  // Save the updated order
+  const updatedOrder = await order.save();
+
+  // Populate the response with full details
+  await updatedOrder.populate('client', 'name email phone');
+
+  res.json({
+    success: true,
+    message: 'Order status updated successfully',
+    order: updatedOrder
+  });
+});
+
 module.exports = {
   getOrders,
   getOrder,
@@ -770,5 +824,6 @@ module.exports = {
   resolveViolation,
   bulkResolveViolations,
   deleteViolation,
-  exportViolations
+  exportViolations,
+  updateOrderStatus
 };

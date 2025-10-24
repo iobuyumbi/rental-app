@@ -5,6 +5,7 @@ import ProductSelector from './ProductSelector';
 import ClientSelector from '../clients/ClientSelector';
 import OrderItemsTable from './OrderItemsTable';
 import OrderSummary from './OrderSummary';
+import { calculateChargeableDays, formatDate } from '../../utils/dateUtils';
 
 const statusOptions = [
   { value: 'pending', label: 'Pending (Awaiting Confirmation)' },
@@ -16,9 +17,8 @@ const statusOptions = [
 
 const paymentStatusOptions = [
   { value: 'pending', label: 'Pending' },
-  { value: 'partial', label: 'Partial' },
-  { value: 'paid', label: 'Paid' },
-  { value: 'refunded', label: 'Refunded' }
+  { value: 'partially_paid', label: 'Partially Paid' },
+  { value: 'paid', label: 'Paid' }
 ];
 
 const OrderForm = ({

@@ -39,11 +39,17 @@ const AttendanceForm = ({
                 <SelectValue placeholder="Select worker" />
               </SelectTrigger>
               <SelectContent>
-                {Array.isArray(workers) && workers.map(worker => (
-                  <SelectItem key={worker._id} value={worker._id}>
-                    {worker.name}
+                {Array.isArray(workers) && workers.length > 0 ? (
+                  workers.map(worker => (
+                    <SelectItem key={worker._id} value={worker._id}>
+                      {worker.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-workers" disabled>
+                    No workers available. Please add workers first.
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
           </div>

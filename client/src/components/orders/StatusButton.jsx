@@ -1,102 +1,62 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Calendar, Clock, DollarSign } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import OrderStatusManager from './OrderStatusManager';
 
 /**
- * StatusButton - Clickable status button that opens modal for status changes
- * Handles date entry and chargeable days calculation
+ * StatusButton - A button component for changing order status
+ * Provides a modal interface for status changes
  */
-const StatusButton = ({ 
-  order, 
-  onStatusChange,
-  disabled = false 
-}) => {
-  const [showModal, setShowModal] = useState(false);
+const StatusButton = ({ order, onStatusChange, disabled = false }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const getStatusVariant = (status) => {
-    switch (status) {
-      case 'pending': return 'secondary';
-      case 'confirmed': return 'default';
-      case 'in_progress': return 'outline';
-      case 'completed': return 'default';
-      case 'cancelled': return 'destructive';
-      default: return 'secondary';
+  const statusOptions = [
+    { value: 'pending', label: 'Pending', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+    { value: 'confirmed', label: 'Confirmed', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { value: 'in_progress', label: 'In Progress', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    { value: 'completed', label: 'Completed', color: 'bg-green-50 text-green-700 border-green-200' },
+    { value: 'cancelled', label: 'Cancelled', color: 'bg-gray-50 text-gray-700 border-gray-200' }
+  ];
+
+  const currentStatus = statusOptions.find(s => s.value === order?.status) || statusOptions[0];
+
+  const handleStatusUpdate = (orderId, updateData) => {
+    if (onStatusChange) {
+      onStatusChange(orderId, updateData);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-gray-100 text-gray-800 hover:bg-gray-200';
-      case 'confirmed': return 'bg-blue-100 text-blue-800 hover:bg-blue-200';
-      case 'in_progress': return 'bg-orange-100 text-orange-800 hover:bg-orange-200';
-      case 'completed': return 'bg-green-100 text-green-800 hover:bg-green-200';
-      case 'cancelled': return 'bg-red-100 text-red-800 hover:bg-red-200';
-      default: return 'bg-gray-100 text-gray-800 hover:bg-gray-200';
-    }
-  };
-
-  const formatStatus = (status) => {
-    switch (status) {
-      case 'pending': return 'Pending';
-      case 'confirmed': return 'Confirmed';
-      case 'in_progress': return 'In Progress';
-      case 'completed': return 'Completed';
-      case 'cancelled': return 'Cancelled';
-      default: return status;
-    }
-  };
-
-  const handleClick = () => {
-    if (!disabled) {
-      setShowModal(true);
-    }
-  };
-
-  const handleStatusChange = async (statusData) => {
-    try {
-      await onStatusChange(order._id, statusData);
-      setShowModal(false);
-    } catch (error) {
-      console.error('Error changing status:', error);
-      // Modal will handle error display
-    }
-  };
-
-  const handleClose = () => {
-    setShowModal(false);
-  };
+  if (disabled) {
+    return (
+      <Badge className={currentStatus.color}>
+        {currentStatus.label}
+      </Badge>
+    );
+  }
 
   return (
     <>
       <Button
-        variant="ghost"
+        variant="outline"
         size="sm"
-        className={`px-3 py-1 h-auto font-medium transition-colors ${getStatusColor(order.status)} ${
-          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-        }`}
-        onClick={handleClick}
+        onClick={() => setIsModalOpen(true)}
+        className={`${currentStatus.color} hover:opacity-80`}
         disabled={disabled}
       >
-        <div className="flex items-center gap-2">
-          {order.status === 'in_progress' && <Clock className="h-3 w-3" />}
-          {order.status === 'completed' && <DollarSign className="h-3 w-3" />}
-          {order.status === 'confirmed' && <Calendar className="h-3 w-3" />}
-          {formatStatus(order.status)}
-        </div>
+        {currentStatus.label}
+        <ChevronDown className="ml-1 h-3 w-3" />
       </Button>
 
-      {showModal && (
-        <OrderStatusManager
-          order={order}
-          onStatusChange={handleStatusChange}
-          onComplete={handleClose}
-          workers={[]} // Pass workers from props if available
-        />
-      )}
+      <OrderStatusManager
+        order={order}
+        onStatusChange={handleStatusUpdate}
+        onComplete={() => setIsModalOpen(false)}
+        isOpen={isModalOpen}
+        onOpenChange={setIsModalOpen}
+      />
     </>
-  );
+    );
 };
 
 export default StatusButton;

@@ -45,7 +45,7 @@ const WorkerTaskModal = ({
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generateLunchAllowance, setGenerateLunchAllowance] = useState(true);
-  const [lunchAllowanceAmount, setLunchAllowanceAmount] = useState(200); // Default KES 200
+  const [lunchAllowanceAmount, setLunchAllowanceAmount] = useState(100); // Default KES 100
   const [calculatedAmount, setCalculatedAmount] = useState(0);
 
   // Initialize form with existing task data if editing, or preset data if provided
@@ -221,12 +221,9 @@ const WorkerTaskModal = ({
     }
   };
 
-  // Calculate share per worker
+  // Each worker gets the full daily rate (no division)
   const presentWorkersCount = taskData.workers.filter((w) => w.present).length;
-  const sharePerWorker =
-    presentWorkersCount > 0
-      ? (taskData.taskAmount / presentWorkersCount).toFixed(2)
-      : 0;
+  const sharePerWorker = parseFloat(taskData.taskAmount).toFixed(2);
 
   if (!isOpen) return null;
 

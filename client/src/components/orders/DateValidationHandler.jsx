@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -8,8 +8,8 @@ import { AlertTriangle, Calendar, Clock, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 
 /**
- * DateValidationHandler - Validates rental dates and calculates actual usage
- * Triggers when order status changes to 'completed' to check return dates
+ * DateValidationHandler - Advanced rental date validation and financial adjustment
+ * Based on sophisticated business logic for early/late returns with grace periods
  */
 const DateValidationHandler = ({
   order,
@@ -22,64 +22,77 @@ const DateValidationHandler = ({
   const [calculations, setCalculations] = useState(null);
   const [showAdjustment, setShowAdjustment] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && order) {
-      // Set actual return date to today by default
-      setActualReturnDate(new Date().toISOString().split('T')[0]);
-      calculateUsage();
-    }
-  }, [isOpen, order]);
+  // Utility to convert Date objects to start-of-day for consistent day-count calculations
+  const getStartOfDay = (date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
 
-  useEffect(() => {
-    if (actualReturnDate && order) {
-      calculateUsage();
-    }
-  }, [actualReturnDate, setupDays, order]);
-
-  const calculateUsage = () => {
+  const calculateUsage = useCallback(() => {
     if (!order || !actualReturnDate) return;
 
-    const startDate = new Date(order.rentalStartDate);
-    const plannedEndDate = new Date(order.rentalEndDate);
-    const actualEndDate = new Date(actualReturnDate);
-    
+    // Use UTC dates to avoid local timezone issues for comparison
+    const startDate = getStartOfDay(order.rentalStartDate);
+    const plannedEndDate = getStartOfDay(order.rentalEndDate);
+    const actualEndDate = getStartOfDay(actualReturnDate);
+
     // Calculate setup allowance (grace period before rental starts)
     const setupAllowanceDate = new Date(startDate);
     setupAllowanceDate.setDate(setupAllowanceDate.getDate() - setupDays);
     
-    // Calculate return allowance (grace period after rental ends)
+    // Calculate return allowance (grace period *after* rental ends)
     const returnAllowanceDate = new Date(plannedEndDate);
     returnAllowanceDate.setDate(returnAllowanceDate.getDate() + setupDays);
 
-    // Calculate planned vs actual rental days
-    const plannedDays = Math.ceil((plannedEndDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
-    const actualDays = Math.ceil((actualEndDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+    // Calculate planned vs actual rental duration in milliseconds
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
     
-    // Determine if return is within acceptable terms
+    // Planned days: The duration from planned start to planned end (inclusive of start and end day)
+    const plannedDays = Math.ceil((plannedEndDate - startDate) / MS_PER_DAY) + 1;
+    
+    // Actual days: The duration from planned start to actual return date (inclusive)
+    const actualDays = Math.max(0, Math.ceil((actualEndDate - startDate) / MS_PER_DAY) + 1);
+    
+    // Determine return status
     const isEarlyReturn = actualEndDate < plannedEndDate;
+    // Check if actual return date is strictly after the grace period ends
     const isLateReturn = actualEndDate > returnAllowanceDate;
-    const isWithinGrace = actualEndDate <= returnAllowanceDate && actualEndDate >= plannedEndDate;
+    const isWithinGrace = !isEarlyReturn && actualEndDate <= returnAllowanceDate;
     
     // Calculate financial impact
     const originalAmount = order.totalAmount || 0;
     const dailyRate = plannedDays > 0 ? originalAmount / plannedDays : 0;
     
     let adjustedAmount = originalAmount;
-    let adjustmentReason = 'No adjustment needed';
+    let adjustmentReason = 'On-time return (within grace period)';
     
     if (isEarlyReturn) {
       // Early return - potential refund
-      adjustedAmount = Math.max(dailyRate * actualDays, originalAmount * 0.5); // Minimum 50% charge
-      adjustmentReason = 'Early return - adjusted for actual usage';
+      // Policy: Charge for actual used days, but minimum 50% of original amount
+      const costForUsedDays = dailyRate * actualDays;
+      const minCharge = originalAmount * 0.5;
+      
+      adjustedAmount = Math.max(costForUsedDays, minCharge); 
+      adjustmentReason = 'Early return - adjusted for actual usage (minimum charge applies)';
+
+      if (adjustedAmount === minCharge) {
+        adjustmentReason = 'Early return - minimum 50% charge applied';
+      }
     } else if (isLateReturn) {
       // Late return - additional charges
-      const extraDays = Math.ceil((actualEndDate - returnAllowanceDate) / (1000 * 60 * 60 * 24));
-      const penaltyRate = dailyRate * 1.5; // 50% penalty for late returns
-      adjustedAmount = originalAmount + (extraDays * penaltyRate);
+      // Calculate days late *after* the grace period ends
+      const extraDaysMs = actualEndDate - returnAllowanceDate;
+      const extraDays = Math.ceil(extraDaysMs / MS_PER_DAY);
+      
+      const penaltyRate = dailyRate * 1.5; // 50% penalty on daily rate
+      const penaltyAmount = extraDays * penaltyRate;
+      
+      adjustedAmount = originalAmount + penaltyAmount;
       adjustmentReason = `Late return - ${extraDays} day(s) penalty applied`;
     }
 
-    const calculations = {
+    const calculationResults = {
       startDate,
       plannedEndDate,
       actualEndDate,
@@ -91,25 +104,45 @@ const DateValidationHandler = ({
       isLateReturn,
       isWithinGrace,
       originalAmount,
-      adjustedAmount,
+      adjustedAmount: parseFloat(adjustedAmount.toFixed(2)),
       adjustmentReason,
-      dailyRate,
-      extraDays: isLateReturn ? Math.ceil((actualEndDate - returnAllowanceDate) / (1000 * 60 * 60 * 24)) : 0,
-      refundAmount: isEarlyReturn ? originalAmount - adjustedAmount : 0,
-      penaltyAmount: isLateReturn ? adjustedAmount - originalAmount : 0
+      dailyRate: parseFloat(dailyRate.toFixed(2)),
+      extraDays: isLateReturn ? Math.ceil((actualEndDate - returnAllowanceDate) / MS_PER_DAY) : 0,
+      // Refund is positive if Early Return, otherwise 0
+      refundAmount: isEarlyReturn ? parseFloat((originalAmount - adjustedAmount).toFixed(2)) : 0,
+      // Penalty is positive if Late Return, otherwise 0
+      penaltyAmount: isLateReturn ? parseFloat((adjustedAmount - originalAmount).toFixed(2)) : 0
     };
 
-    setCalculations(calculations);
+    setCalculations(calculationResults);
     setShowAdjustment(isEarlyReturn || isLateReturn);
-  };
+  }, [order, actualReturnDate, setupDays]);
+  
+  // Initialize when modal opens
+  useEffect(() => {
+    if (isOpen && order) {
+      // Set actual return date to today by default on open
+      const today = new Date().toISOString().split('T')[0];
+      setActualReturnDate(today);
+    }
+  }, [isOpen, order]);
+
+  // Recalculate whenever inputs change
+  useEffect(() => {
+    calculateUsage();
+  }, [actualReturnDate, setupDays, order, calculateUsage]);
 
   const formatDate = (date) => {
+    if (!date) return 'N/A';
     return new Date(date).toLocaleDateString('en-US', {
-      weekday: 'short',
       year: 'numeric',
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const formatCurrency = (amount) => {
+    return `KES ${amount?.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
   };
 
   const getStatusBadge = () => {
@@ -201,71 +234,86 @@ const DateValidationHandler = ({
 
           {/* Calculations Display */}
           {calculations && (
-            <div className="border rounded-lg p-4">
+            <div className="border border-indigo-200 rounded-xl p-4 bg-indigo-50">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
+                <h3 className="font-semibold flex items-center gap-2 text-indigo-700">
+                  <Clock className="h-5 w-5" />
                   Usage Analysis
                 </h3>
                 {getStatusBadge()}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
                 <div>
-                  <span className="font-medium">Actual Days Used:</span> {calculations.actualDays}
+                  <span className="font-medium">Actual Days Used:</span> <span className="font-bold">{calculations.actualDays}</span>
                 </div>
                 <div>
-                  <span className="font-medium">Daily Rate:</span> KES {calculations.dailyRate.toFixed(2)}
+                  <span className="font-medium">Daily Rate:</span> {formatCurrency(calculations.dailyRate)}
                 </div>
                 <div>
-                  <span className="font-medium">Grace Period Until:</span> {formatDate(calculations.returnAllowanceDate)}
+                  <span className="font-medium">Grace Period Until:</span> <span className="font-bold">{formatDate(calculations.returnAllowanceDate)}</span>
                 </div>
-                <div>
-                  <span className="font-medium">Return Status:</span> {calculations.adjustmentReason}
+                <div className="col-span-2">
+                  <span className="font-medium">Status:</span> {calculations.adjustmentReason}
                 </div>
               </div>
 
               {/* Financial Impact */}
               {showAdjustment && (
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                  <div className="flex items-center gap-2 mb-2">
-                    <DollarSign className="h-4 w-4 text-yellow-600" />
-                    <span className="font-semibold text-yellow-800">Amount Adjustment Required</span>
+                <div className="mt-4 p-4 bg-white border border-yellow-300 rounded-lg shadow-md">
+                  <div className="flex items-center gap-2 mb-3">
+                    <DollarSign className="h-5 w-5 text-yellow-600" />
+                    <span className="font-semibold text-lg text-yellow-800">Amount Adjustment Required</span>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-3 gap-4 text-sm font-semibold">
                     <div>
-                      <span className="font-medium">Original Amount:</span> KES {calculations.originalAmount.toLocaleString()}
-                    </div>
-                    <div>
-                      <span className="font-medium">Adjusted Amount:</span> KES {calculations.adjustedAmount.toLocaleString()}
+                      <span className="text-gray-500 font-normal block">Original Amount</span> 
+                      {formatCurrency(calculations.originalAmount)}
                     </div>
                     
                     {calculations.isEarlyReturn && (
-                      <div className="col-span-2 text-blue-600">
-                        <span className="font-medium">Potential Refund:</span> KES {calculations.refundAmount.toLocaleString()}
+                      <div className="text-blue-600">
+                        <span className="text-gray-500 font-normal block">Refund Amount</span>
+                        {formatCurrency(calculations.refundAmount)}
                       </div>
                     )}
                     
                     {calculations.isLateReturn && (
-                      <div className="col-span-2 text-red-600">
-                        <span className="font-medium">Late Penalty:</span> KES {calculations.penaltyAmount.toLocaleString()} 
-                        ({calculations.extraDays} extra days)
+                      <div className="text-red-600">
+                        <span className="text-gray-500 font-normal block">Late Penalty</span>
+                        {formatCurrency(calculations.penaltyAmount)}
                       </div>
                     )}
+
+                    <div className="col-span-3 lg:col-span-1 border-l-4 pl-3 border-indigo-500">
+                      <span className="text-gray-500 font-normal block">New Total Due</span> 
+                      <span className="text-xl text-indigo-700">{formatCurrency(calculations.adjustedAmount)}</span>
+                    </div>
                   </div>
                 </div>
               )}
 
               {calculations.isLateReturn && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5" />
-                  <div className="text-sm text-red-700">
-                    <p className="font-medium">Late Return Detected</p>
-                    <p>Items returned {calculations.extraDays} day(s) after grace period. Additional charges apply.</p>
+                <div className="mt-3 p-3 bg-red-100 border border-red-300 rounded-lg flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-red-800">
+                    <p className="font-medium">Late Return Warning</p>
+                    <p>Items were returned {calculations.extraDays} day(s) after the grace period ended. A <strong>{formatCurrency(calculations.penaltyAmount)} penalty</strong> has been applied.</p>
                   </div>
                 </div>
               )}
+              
+              {calculations.isEarlyReturn && (
+                <div className="mt-3 p-3 bg-blue-100 border border-blue-300 rounded-lg flex items-start gap-2">
+                  <Clock className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium">Early Return Noted</p>
+                    <p>Items were returned early. A <strong>{formatCurrency(calculations.refundAmount)} refund</strong> is due to the customer, subject to the minimum charge policy.</p>
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
 
@@ -274,7 +322,24 @@ const DateValidationHandler = ({
             <Button variant="outline" onClick={onCancel}>
               Cancel
             </Button>
-            <Button onClick={handleConfirm} disabled={!calculations}>
+            <Button 
+              onClick={() => {
+                if (!calculations) {
+                  toast.error("Calculation required before confirmation.");
+                  return;
+                }
+                const validationResult = {
+                  actualReturnDate,
+                  calculations,
+                  requiresAdjustment: showAdjustment,
+                  adjustedAmount: calculations.adjustedAmount,
+                  originalAmount: calculations.originalAmount
+                };
+                onValidationComplete(validationResult);
+                toast.success(`Validation complete. Adjusted amount: ${formatCurrency(calculations.adjustedAmount)}`);
+              }} 
+              disabled={!calculations || !actualReturnDate}
+            >
               {showAdjustment ? 'Apply Adjustment & Complete' : 'Confirm & Complete'}
             </Button>
           </div>

@@ -10,7 +10,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import WorkerTaskRecorder from "../workers/WorkerTaskRecorder";
+import WorkerTaskModal from "../worker-tasks/WorkerTaskModal";
 import { createWorkerTask } from "../../features/orders/tasks";
 import { calculateTaskAmount } from "./TaskCalculator";
 
@@ -271,17 +271,17 @@ const OrderWorkflowButtons = ({
 
       {/* Worker Task Modal */}
       {showTaskModal && selectedTaskType && (
-        <WorkerTaskRecorder
+        <WorkerTaskModal
           isOpen={showTaskModal}
           onClose={handleCloseModal}
           order={order}
           workers={workers}
-          onSubmit={handleTaskSubmit}
+          onSubmit={handleTaskCreated}
           taskTypePreset={{
             type: selectedTaskType.id,
             label: selectedTaskType.label,
             suggestedAmount: calculateSuggestedAmount(selectedTaskType),
-            description: selectedTaskType.description,
+            description: selectedTaskType.description
           }}
         />
       )}

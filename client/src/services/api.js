@@ -202,6 +202,11 @@ export const ordersAPI = {
     api.post("/orders", orderData).then(handleResponse).catch(handleError),
   updateOrder: (id, orderData) =>
     api.put(`/orders/${id}`, orderData).then(handleResponse).catch(handleError),
+  updateOrderStatus: (id, statusData) =>
+    api
+      .put(`/orders/${id}/status`, statusData)
+      .then(handleResponse)
+      .catch(handleError),
   deleteOrder: (id) =>
     api.delete(`/orders/${id}`).then(handleResponse).catch(handleError),
   markReturned: (id) =>
@@ -561,10 +566,9 @@ const processTasksForRemuneration = (tasks) => {
               };
             }
 
-            // Calculate worker's share of the task amount
-            const presentWorkers = task.workers.filter((w) => w.present).length;
-            const workerShare =
-              presentWorkers > 0 ? task.taskAmount / presentWorkers : 0;
+            // Each worker gets the full task amount (their daily rate)
+            // No division - each worker is paid their full daily rate per order per day
+            const workerShare = task.taskAmount;
 
             remunerationSummary[workerId].totalAmount += workerShare;
             remunerationSummary[workerId].taskCount += 1;
